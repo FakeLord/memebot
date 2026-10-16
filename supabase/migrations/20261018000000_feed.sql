@@ -10,7 +10,7 @@ create table public.feed_items (
   external_id  text not null,                        -- tweet kimliği / "sohbet:mesaj" (METİN: 19 hane JS sayısına sığmaz)
   author       jsonb not null default '{}'::jsonb,   -- { name, handle, avatar, verified, followers }
   text         text not null default '',
-  media        jsonb not null default '[]'::jsonb,   -- [{ type: photo|video, url }]
+  media        jsonb not null default '[]'::jsonb,   -- [{ type: photo|video, url }] — Telegram önizlemesi data URL (≤150 KB)
   kind         text not null default 'post' check (kind in ('post', 'reply', 'quote', 'repost')),
   ref          jsonb,                                -- yanıtlanan / alıntılanan gönderi { author, text }
   url          text,                                 -- orijinal gönderi
@@ -34,10 +34,5 @@ create policy "gizle/sabitle" on public.feed_items
   for update using (user_id = auth.uid() and public.my_role() is not null) with check (user_id = auth.uid());
 revoke update on public.feed_items from authenticated;
 grant update (hidden, pinned) on public.feed_items to authenticated;
-
--- Telegram görsellerinin küçük önizlemeleri (motor yükler). Yollar tahmin edilemez (uuid).
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('feed-media', 'feed-media', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
-on conflict (id) do nothing;
 
 alter publication supabase_realtime add table public.feed_items;

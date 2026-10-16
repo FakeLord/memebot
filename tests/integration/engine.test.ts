@@ -492,16 +492,16 @@ d('MemeBot Engine (yerel Supabase)', () => {
     const other = await asst.client.from('feed_items').select('id').eq('id', id!)
     expect(other.data ?? []).toEqual([])
 
-    // Telegram görsel önizlemesi depoya yüklenir ve karta eklenir; 7 günlük temizlik görseli de siler
+    // Telegram görsel önizlemesi karta gömülür (herkese açık depoya gitmez); 7 günlük temizlik kartı siler
     const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 0xff, 0xd9])
     await engine.feed.attachPhoto(dev.id, 'x', `t-${tag}`, jpeg)
     const { data: withPhoto } = await dev.client.from('feed_items').select('media').eq('id', id!).single()
-    const url = withPhoto!.media[0].url as string
-    expect(url).toContain('/feed-media/')
-    expect((await fetch(url)).status).toBe(200)
+    expect(withPhoto!.media[0].url).toMatch(/^data:image\/jpeg;base64,/)
+    await engine.feed.attachPhoto(dev.id, 'x', `t-${tag}`, new Uint8Array(200 * 1024)) // büyük görsel atlanır
+    expect((await dev.client.from('feed_items').select('media').eq('id', id!).single()).data!.media[0].url).toMatch(/^data:/)
     await admin.from('feed_items').update({ received_at: new Date(Date.now() - 8 * 24 * 3600_000).toISOString() }).eq('id', id!)
     expect(await engine.feed.cleanup()).toBeGreaterThan(0)
-    expect((await fetch(url)).status).not.toBe(200)
+    expect((await admin.from('feed_items').select('id').eq('id', id!)).data).toEqual([])
   })
 
   it('founder herkesin motor durumunu okur, asistan sadece kendininkini', async () => {

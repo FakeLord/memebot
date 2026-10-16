@@ -15,7 +15,7 @@ export function supabaseCsp(url: string | undefined): Plugin {
       }
       if (/\.supabase\.co$/.test(new URL(origin).hostname)) return html
       const ws = origin.replace(/^http/, 'ws')
-      return html.replace("connect-src 'self'", `connect-src 'self' ${origin} ${ws}`).replace("img-src 'self'", `img-src 'self' ${origin}`)
+      return html.replace("connect-src 'self'", `connect-src 'self' ${origin} ${ws}`)
     }
   }
 }

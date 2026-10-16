@@ -1,103 +1,65 @@
 # MemeBot
 
-Telegram sinyallerinden gelen Solana token adreslerini GMGN üzerinden kontrol edip alım-satım yapan masaüstü uygulaması (Windows).
+Telegram ve X (Twitter) sinyallerinden gelen Solana token adreslerini GMGN üzerinden güvenlik kontrolünden geçirip
+kurallara göre onaylı ya da otomatik alım-satım yapan, gönderilerden token deploy edebilen uygulama.
 
-- **Veritabanı ve giriş:** Supabase (birden fazla bilgisayardan aynı hesap)
-- **Roller:** Founder · Developer · Asistan
-- **Alım-satım:** GMGN OpenAPI (`openapi.gmgn.ai`)
-- **Güncellemeler:** GitHub Releases → uygulama kendisi indirir
+- **Motor (MemeBot Engine):** 7/24 çalışan tek Node süreci — GMGN, Telegram, XFlux, karar motoru, emir motoru, takip, otomatik mod, deploy.
+  Şimdilik masaüstü uygulamasının içinde arka planda, sonra VPS'te.
+- **Arayüz:** Masaüstü (Windows, Electron) ve web (Chrome, Cloudflare Pages) — ikisi de aynı React arayüzü, sadece Supabase ile konuşur.
+- **Veritabanı ve giriş:** Supabase (RLS her tabloda). **Güncellemeler:** GitHub Releases.
 
-Plan ve mimari: [docs/MVP-PLAN.md](docs/MVP-PLAN.md)
+Belgeler: [docs/KURULUM-V2.md](docs/KURULUM-V2.md) (kurulum adımları) · [docs/HANDOFF.md](docs/HANDOFF.md) (teknik devir) ·
+[docs/V2-PLAN.md](docs/V2-PLAN.md) (plan) · [docs/V2-TASLAK.md](docs/V2-TASLAK.md) (ekran analizi)
+
+## Mimari
+
+```
+Arayüz (Chrome / masaüstü)  ──yazar──►  Supabase  ◄──dinler/yazar──  MemeBot Engine
+  emir niyeti (orders)                  tablolar + realtime             GMGN · Telegram · XFlux
+  komut (engine_commands)                                               karar · emir · takip · deploy
+```
+
+- Arayüz sadece **niyet** yazar; limitler, ücretler, TP/SL ve GMGN'e gönderim motorda.
+- Sırlar arayüzde motorun açık anahtarıyla şifrelenir (mühürlü zarf), sadece motor açar ve kendi kasasında saklar.
+- Tek motor kuralı: aynı anda tek etkin motor (`engine_claim`).
 
 ## Roller
 
 | Yetki | Founder | Developer | Asistan |
 |---|:-:|:-:|:-:|
 | Canlı akış, token kontrol | ✓ | ✓ | ✓ |
-| Kendi sinyal kaynaklarını yönetme | ✓ | ✓ | ✓ |
-| Kural, emir, pozisyon yazma (işlem) | ✓ | ✓ | — |
-| Herkesin verisini görme | ✓ | — | — |
-| Kullanıcı ekleme / rol değiştirme | ✓ | — | — |
-| Tüm işlemleri durdurma (kill switch) | ✓ | — | — |
+| Kendi kaynakları, anahtar kelimeler, tema | ✓ | ✓ | ✓ |
+| Kural, emir, deploy, ücret preset'i (işlem) | ✓ | ✓ | — |
+| Herkesin verisini görme, ortak hesap havuzu | ✓ | — | — |
+| Kullanıcı yönetimi, kill switch | ✓ | — | — |
 
-Kurallar veritabanında (RLS) uygulanır; arayüzü değiştirmek yetki kazandırmaz.
+## Para güvenliği
 
-## Dışarıdan giriş neden mümkün değil
-
-1. Supabase'de **açık kayıt kapalı** (aşağıdaki kurulum adımı 3).
-2. Uygulamada kayıt ekranı yok; hesapları sadece founder oluşturur.
-3. Bir şekilde oluşan hesap varsayılan olarak **pasif** açılır ve hiçbir veriyi göremez.
-4. Kod public olsa da sırlar repoda değildir: GMGN anahtarları her bilgisayarda Windows tarafından şifrelenir, `service_role` anahtarı sadece Supabase Edge Function'da durur.
-
-## Kurulum (bir kez)
-
-1. **Supabase projesi** oluşturun → https://supabase.com
-2. **Şema:** SQL Editor'da `supabase/migrations/20261016000000_init.sql` dosyasını çalıştırın
-   (ya da `npx supabase link` + `npx supabase db push`).
-3. **Açık kaydı kapatın:** Authentication → Sign In / Providers → *Allow new users to sign up* → **kapalı**.
-4. **Kullanıcı yönetim fonksiyonu:** `npx supabase functions deploy manage-users`
-5. **Kendinizi founder yapın:** Authentication → Users → *Add user* ile hesabınızı açın, sonra
-   `supabase/bootstrap-founder.sql` dosyasındaki e-postayı değiştirip SQL Editor'da çalıştırın.
-6. **Yerel ayar:** `.env.example` → `.env` olarak kopyalayın, Supabase URL ve anon anahtarı girin.
-
-## Telegram bağlantısı
-
-1. https://my.telegram.org → **API development tools** → bir uygulama oluşturup **API ID** ve **API Hash** alın.
-2. Uygulamada **Kaynaklar** ekranında API ID, API Hash ve telefon numarasını girin, gelen kodu doğrulayın.
-3. **Kanal ekle** ile izlemek istediğiniz kanal/grupları seçin.
-
-Uygulama hesabınızla sadece okur, mesaj göndermez. Ana hesap yerine ayrı bir Telegram hesabı önerilir.
-Oturum her bilgisayarda ayrı ve şifreli saklanır; aynı mesaj iki bilgisayarda yakalansa da bir kez sayılır.
-
-## X / Twitter bağlantısı (XFlux)
-
-1. https://www.xfluxapi.com adresinde hesap açın, API anahtarını (`xflux_...`) alın.
-2. XFlux paneli → **Monitors**: izlemek istediğiniz her hesap için izleyici kurun.
-   Ücretsiz plan 5 dk'da bir kontrol eder; token yakalamak için Starter ve üstü (1 sn) gerekir.
-3. Uygulamada **Kaynaklar → X / Twitter**: anahtarı girin, listelenen izleyicilerde **İzle**'ye basın.
-
-Uygulama kalan aylık kotaya göre yoklama hızını ayarlar. Aynı kullanıcı birden fazla bilgisayarda
-açıksa sadece biri yoklar. Anahtar her bilgisayarda ayrı ve şifreli saklanır.
+- Her emir benzersiz `idempotency_key`; durum geçişleri koşullu güncelleme
+- GMGN'de `confirmed` görülmeden pozisyon yok; başarısız işlem otomatik tekrar denenmez
+- Kill switch alımı ve deploy'u durdurur, satış serbest; emir başına 5 SOL mutlak sınır
+- **Deneme modu** (varsayılan): alımlar GMGN teklifiyle simüle edilir, deploy isteği sadece hazırlanır — para harcanmaz
 
 ## Geliştirme
 
 ```bash
-npm install
-npm run dev
+npm install          # postinstall Electron ikilisini indirir
+npm run dev          # masaüstü (kurulu MemeBot açıksa tek-örnek kilidi yüzünden kapanır)
+npm run dev:web      # web arayüzü
+npm run build        # typecheck + masaüstü derlemesi (out/, motor: out/main/engine.js)
+npm run build:web    # web sitesi (dist-web/)
+npm test             # birim + entegrasyon testleri
+npm run dist         # Windows kurulum dosyası (release/<sürüm>/)
+npm run engine       # motoru düz Node ile çalıştır (.env.engine, bkz. .env.engine.example)
 ```
 
-## Yeni sürüm yayınlama
+**Entegrasyon testleri** yerel Supabase ister (Docker): `npx supabase start`. Testler gerçek motoru yerel veritabanına karşı
+sahte GMGN ile çalıştırır; gerçek projeye ve paraya dokunmaz. Yerel Supabase yoksa kendiliğinden atlanır.
 
-1. `package.json` → `version` alanını artırın.
-2. Etiketleyip gönderin:
+**Arayüzü uçtan uca denemek:** `npx supabase start` → `npx tsx --env-file=<yerel ayar> scripts/dev-engine.mts` (sahte GMGN,
+örnek gönderiler) → `npm run dev:web` (yerel `VITE_SUPABASE_*` ile).
 
-```bash
-git commit -am "v0.1.1" && git tag v0.1.1 && git push --follow-tags
-```
+## Yayın
 
-GitHub Actions kurulum dosyasını derleyip Releases'e yükler. İlk seferde repo ayarlarına
-(Settings → Secrets and variables → Actions → **Variables**) `VITE_SUPABASE_URL` ve
-`VITE_SUPABASE_ANON_KEY` ekleyin.
-
-## GMGN anahtarı
-
-1. Ed25519 anahtar çifti üretin:
-
-```bash
-openssl genpkey -algorithm ed25519 -out gmgn.pem && openssl pkey -in gmgn.pem -pubout
-```
-
-2. Açık anahtarı https://gmgn.ai/ai adresine yükleyip API Key alın.
-3. Uygulamada **Ayarlar → GMGN API** bölümüne API Key ve `gmgn.pem` içeriğini girin.
-   `gmgn.pem` dosyasını sonra güvenli bir yere taşıyın; repo klasöründe bırakmayın.
-
-## Durum
-
-- [x] Supabase şeması, roller, RLS
-- [x] Giriş, kullanıcı yönetimi, kill switch
-- [x] GMGN istemcisi (imzalı istekler), token güvenlik kontrolü
-- [x] GitHub Releases ile otomatik güncelleme
-- [x] Telegram dinleyici (Faz 2) — migration: `supabase/migrations/20261016120000_signals.sql`
-- [x] Otomatik güvenlik kontrolü + kurallar + manuel onay (Faz 3) — migration: `supabase/migrations/20261016150000_candidates.sql`
-- [x] Alım-satım: deneme modu + gerçek mod, TP/SL, limitler, Emirler ekranı (Faz 4) — migration: `supabase/migrations/20261016180000_trading.sql`
-- [x] Canlı fiyat/PnL, GMGN TP/SL eşitleme, Tümünü sat, otomatik mod (Faz 5) — migration: `supabase/migrations/20261016210000_positions_auto.sql`
+`npm version 0.X.Y --no-git-tag-version` → commit → `git tag -a v0.X.Y` → push `main` + etiket → GitHub Actions derleyip yayınlar.
+Web sitesi `main`'e her push'ta Cloudflare Pages tarafından güncellenir.

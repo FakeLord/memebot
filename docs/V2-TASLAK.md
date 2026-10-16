@@ -1,7 +1,7 @@
 # MemeBot v2 — J7Tracker ekranlarından türetilen taslak
 
 Tarih: 16 Ekim 2026 · Kaynak: kullanıcının paylaştığı 13 ekran görüntüsü (J7Tracker tanıtım videosu)
-Durum: **taslak — karar bekleyen maddeler §8'de**
+Durum: **kararlar verildi (§8), Faz 1–7 uygulandı** — uygulama planı ve durum: `V2-PLAN.md`
 
 ---
 
@@ -229,10 +229,10 @@ ui_settings       user_id, theme(json), layout(json), keybinds(json)
 
 ## 8. Senden karar beklenenler
 
-1. **Web mimarisi:** ✅ **A — MemeBot Engine sunucusu** (16 Ekim 2026). Açık kalan: sunucu nerede çalışsın, VPS mi kendi bilgisayarın mı?
-2. **X kapsamı ve bütçesi:** kaç hesap ve aylık ne kadar? (§6)
-3. **AI ad/görsel önerisi** istiyor musun? (Claude API ile; gönderi başına küçük bir maliyet)
-4. **Sıra:** önce v2-0 (gerçek GMGN doğrulaması) — önerim bu — sonra v2-1?
+1. **Web mimarisi:** ✅ A — MemeBot Engine. Motor proje bitene kadar kullanıcının bilgisayarında, sonra VPS.
+2. **X kapsamı:** ✅ şimdilik ücretli plan yok; XFlux ücretsiz plan ile temsili akış.
+3. **AI ad/görsel önerisi:** ✅ sonraya.
+4. **Sıra:** ✅ gerçek GMGN doğrulaması en sona (Faz 8); önce motor, web, akış, ayarlar, deploy (deneme), cüzdanlar.
 
 ---
 

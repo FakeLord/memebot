@@ -1,12 +1,13 @@
-import { randomUUID } from 'node:crypto'
 import type { EngineContext } from './context'
 import { extractMints } from '../shared/extract'
 import { extractTickers, searchTerms, type FeedAuthor, type FeedMedia, type FeedRef, type FeedSuggestion, type KeywordRule } from '../shared/feed'
 
 // Canlı akış yazıcısı: izlenen kaynakların gönderilerini karta (feed_items) çevirir,
-// Telegram görsellerini depoya yükler ve kartın öneri ızgarasını GMGN aramasıyla doldurur.
+// Telegram görsel önizlemelerini karta ekler ve kartın öneri ızgarasını GMGN aramasıyla doldurur.
+// Telegram önizlemesi kartın içinde (data URL) durur: özel grupların görselleri herkese açık bir depoya gitmez,
+// satırla birlikte RLS korumasında kalır ve 7 gün sonra kartla birlikte silinir.
 
-const BUCKET = 'feed-media'
+const PHOTO_MAX_BYTES = 150 * 1024
 const RETENTION_MS = 7 * 24 * 3600_000
 const SEARCH_CACHE_MS = 2 * 60_000
 const MAX_SUGGESTIONS = 6
@@ -86,12 +87,11 @@ export class FeedWriter {
     return data.id
   }
 
-  /** Telegram görsel önizlemesi: depoya yükle, karta ekle. */
+  /** Telegram görsel önizlemesi: küçükse karta gömülür (büyük görseller atlanır). */
   async attachPhoto(userId: string, platform: 'telegram' | 'x', externalId: string, bytes: Uint8Array): Promise<void> {
-    const path = `${userId}/${randomUUID()}.jpg`
-    const { error } = await this.ctx.db.storage.from(BUCKET).upload(path, bytes, { contentType: 'image/jpeg', upsert: false })
-    if (error) return this.ctx.log.warn('görsel yüklenemedi', { error: error.message })
-    const url = this.ctx.db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    if (bytes.length > PHOTO_MAX_BYTES) return
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50
+    const url = `data:image/${isPng ? 'png' : 'jpeg'};base64,${Buffer.from(bytes).toString('base64')}`
     await this.ctx.db
       .from('feed_items')
       .update({ media: [{ type: 'photo', url }] })
@@ -116,7 +116,9 @@ export class FeedWriter {
 
   /** Kartın öneri ızgarası: $TICKER, tırnak içi ve anahtar kelimelerle eşleşen en fazla 6 token. */
   async suggest(userId: string, itemId: string, body: string): Promise<FeedSuggestion[]> {
-    const terms = searchTerms(body, this.keywordsFor(userId))
+    // Regex türü kelimeler motorda çalıştırılmaz: hatalı/ağır bir ifade motoru (herkes için) kilitleyebilir.
+    // Vurgu ve bildirim için regex sadece kullanıcının kendi tarayıcısında uygulanır.
+    const terms = searchTerms(body, this.keywordsFor(userId).filter((k) => k.match !== 'regex'))
     const out: FeedSuggestion[] = []
     for (const term of terms) {
       for (const c of await this.search(userId, term)) {
@@ -128,16 +130,10 @@ export class FeedWriter {
     return out
   }
 
-  /** 7 günden eski kartları ve görsellerini siler. */
+  /** 7 günden eski kartları siler. */
   async cleanup(): Promise<number> {
     const before = new Date(Date.now() - RETENTION_MS).toISOString()
-    const { data } = await this.ctx.db.from('feed_items').select('id, media').lt('received_at', before).limit(500)
-    const rows = (data as { id: string; media: FeedMedia[] }[]) ?? []
-    if (!rows.length) return 0
-    const marker = `/object/public/${BUCKET}/`
-    const paths = rows.flatMap((r) => (r.media ?? []).map((m) => m.url).filter((u) => u.includes(marker)).map((u) => u.split(marker)[1]))
-    if (paths.length) await this.ctx.db.storage.from(BUCKET).remove(paths)
-    await this.ctx.db.from('feed_items').delete().in('id', rows.map((r) => r.id))
-    return rows.length
+    const { data } = await this.ctx.db.from('feed_items').delete().lt('received_at', before).select('id')
+    return data?.length ?? 0
   }
 }

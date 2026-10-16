@@ -15,15 +15,17 @@ Tarih: 16 Ekim 2026 · Ayrıntılı ekran analizi: `V2-TASLAK.md`
 
 ## Fazlar
 
+Durum (16 Ekim 2026): **Faz 1–7 tamam** (kodlandı, test edildi, yerelde commit'lendi; yayın kullanıcı onayı bekliyor → tek sürüm **0.2.0**). Faz 8–9 kullanıcıyla.
+
 | Faz | Kapsam | Sürüm |
 |---|---|---|
-| 1 Hazırlık | Plan dokümanı, Vitest, CI'da test | — |
-| 2 Motor | `src/engine/`: GMGN, Telegram, XFlux, karar motoru, emir motoru, takip, otomatik mod. Komutlar Supabase (`engine_commands`), sırlar motorda şifreli (mühürlü zarf), tek motor kuralı | — |
-| 3 Web + kabuk | Arayüz sadece Supabase ile konuşur; Cloudflare Pages; masaüstü = kabuk + motor sunucusu + güncelleme | 0.2.0 |
-| 4 Akış v2 | `feed_items`, gönderi kartları, vurgu, öneri ızgarası (GMGN arama), kart aksiyonları, durum çubuğu | 0.3.0 |
-| 5 Ayarlar v2 | Hesap havuzu + CSV, anahtar kelimeler, görünüm/temalar, kısayollar, ücret preset'leri P1–P3 | 0.4.0 |
-| 6 Deploy | GMGN `create_token` formu — deneme modunda (gönderilmez) | 0.5.0 |
-| 7 Cüzdanlar | Liste, etiket, varsayılan, bakiye | 0.6.0 |
+| 1 Hazırlık ✅ | Plan dokümanı, Vitest, CI'da test | — |
+| 2 Motor ✅ | `src/engine/`: GMGN, Telegram, XFlux, karar motoru, emir motoru, takip, otomatik mod. Komutlar Supabase (`engine_commands`), sırlar motorda şifreli (mühürlü zarf), tek motor kuralı | — |
+| 3 Web + kabuk ✅ | Arayüz sadece Supabase ile konuşur; Cloudflare Pages; masaüstü = kabuk + motor sunucusu + güncelleme | 0.2.0 (hepsi tek sürüm) |
+| 4 Akış v2 ✅ | `feed_items`, gönderi kartları, vurgu, öneri ızgarası (GMGN arama), kart aksiyonları, durum çubuğu | 0.2.0 |
+| 5 Ayarlar v2 ✅ | Hesap havuzu + CSV, anahtar kelimeler, görünüm/temalar, kısayollar, ücret preset'leri P1–P3 | 0.2.0 |
+| 6 Deploy ✅ | GMGN `create_token` formu — deneme modunda (gönderilmez) | 0.2.0 |
+| 7 Cüzdanlar ✅ | Liste, etiket, varsayılan, bakiye | 0.2.0 |
 | 8 Gerçek doğrulama | 0.01 SOL alım/satım, TP/SL, otomatik mod, test token'ı | — |
 | 9 VPS | Sunucuya taşıma | 1.0.0 |
 
