@@ -21,4 +21,4 @@ publish:
   provider: github
   owner: FakeLord
   repo: memebot
-  releaseType: release
+  releaseType: draft   # CI önce taslak açar, yükleme bitince yayına alır

@@ -37,9 +37,25 @@ jobs:
             echo "Etiket ${GITHUB_REF_NAME} ama package.json $PKG" && exit 1
           fi
 
+      # Release'i önceden aç: electron-builder dosyaları paralel yüklerken
+      # iki ayrı release oluşturmasın (v0.1.0'da yaşandı).
+      - name: Release'i oluştur
+        shell: bash
+        run: gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "MemeBot $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Derle ve yayınla
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+
+      # Taslak sadece tüm dosyalar yüklendikten sonra yayına alınır;
+      # böylece kurulu uygulamalar yarım bir sürümü görmez.
+      - name: Taslağı yayınla
+        shell: bash
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
