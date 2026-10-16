@@ -23,6 +23,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "electron-updater": "^6.8.9",
     "html-to-image": "^1.11.13",
+    "lucide-react": "^0.468.0",
     "telegram": "^2.26.22"
   },
   "devDependencies": {

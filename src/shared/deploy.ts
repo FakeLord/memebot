@@ -122,16 +122,22 @@ export function redactRequest(p: Record<string, unknown>): Record<string, unknow
   return { ...p, image: `<base64 ${Math.round((p.image.length * 3) / 4 / 1024)} KB>` }
 }
 
-/** Gönderiden ad önerileri: $TICKER, tırnak içi, Büyük Harfli kelime grupları. */
+// Kripto gönderilerinde ad olmayan kısaltmalar (tek başına önerilmez)
+const NAME_STOP = new Set(['CA', 'RT', 'DM', 'TG', 'LP', 'CT', 'NFA', 'DYOR', 'SOL', 'ETH', 'BTC'])
+
+/** Gönderiden ad önerileri: $TICKER, tırnak içi, Büyük Harfli kelime grupları.
+ *  Bağlantılar ve token adresleri (base58, 32–44 karakter) önce metinden çıkarılır. */
 export function nameSuggestions(text: string, max = 8): string[] {
+  const clean = text.replace(/https?:\/\/\S+/g, ' ').replace(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g, ' ')
   const out: string[] = []
   const push = (s: string) => {
     const t = s.trim().slice(0, NAME_MAX)
-    if (t.length >= 2 && !out.some((x) => x.toLocaleLowerCase('tr') === t.toLocaleLowerCase('tr'))) out.push(t)
+    if (t.length < 2 || NAME_STOP.has(t.toUpperCase())) return
+    if (!out.some((x) => x.toLocaleLowerCase('tr') === t.toLocaleLowerCase('tr'))) out.push(t)
   }
-  extractQuotes(text).forEach(push)
-  extractTickers(text).forEach(push)
-  for (const m of text.matchAll(/\b(\p{Lu}[\p{L}\p{N}']+(?:\s+\p{Lu}[\p{L}\p{N}']+){0,3})/gu)) push(m[1])
+  extractQuotes(clean).forEach(push)
+  extractTickers(clean).forEach(push)
+  for (const m of clean.matchAll(/\b(\p{Lu}[\p{L}\p{N}']+(?:\s+\p{Lu}[\p{L}\p{N}']+){0,3})/gu)) push(m[1])
   return out.slice(0, max)
 }
 

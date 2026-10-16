@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Bell, BellOff, Check, Download, ExternalLink, Layers, Plus, Search, Send, Trash2, Upload, VolumeX } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
+import { useNav } from '../../lib/nav'
+import { XLogo } from '../../components/FeedCard'
 import { parseCsv, toCsv } from '../../../../shared/settings'
 
-// Hesaplar: (1) Benim hesaplarım — izlediğim Telegram kanalları ve X hesapları (sessize al, bildirim, izle)
+// Hesaplar: (1) Benim hesaplarım — izlediğim Telegram kanalları ve X hesapları (izle, sessize al, bildirim)
 // (2) Ortak havuz — founder'ın herkesle paylaştığı önerilen hesap listesi (CSV içe/dışa aktarma).
 
 interface MySource {
@@ -24,6 +27,8 @@ interface Shared {
   note: string | null
 }
 
+type Platform = 'all' | 'x' | 'telegram'
+
 const PAGE = 20
 
 function download(name: string, text: string) {
@@ -34,35 +39,98 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-function Pager({ page, total, setPage }: { page: number; total: number; setPage: (p: number) => void }) {
-  const pages = Math.max(1, Math.ceil(total / PAGE))
-  if (total <= PAGE) return null
+export function Pager({ page, total, setPage, size = PAGE }: { page: number; total: number; setPage: (p: number) => void; size?: number }) {
+  const pages = Math.max(1, Math.ceil(total / size))
+  const from = total ? page * size + 1 : 0
+  const to = Math.min(total, (page + 1) * size)
+  // 1 2 … son: ilk, son ve etkin sayfanın komşuları
+  const nums = [...new Set([0, page - 1, page, page + 1, pages - 1])].filter((n) => n >= 0 && n < pages).sort((a, b) => a - b)
   return (
-    <div className="row faint" style={{ justifyContent: 'flex-end' }}>
-      <button className="btn btn-xs" disabled={page === 0} onClick={() => setPage(page - 1)}>
-        ‹
-      </button>
-      {page * PAGE + 1}–{Math.min(total, (page + 1) * PAGE)} / {total}
-      <button className="btn btn-xs" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
-        ›
-      </button>
+    <div className="list-foot">
+      <span>
+        {from}–{to} / {total}
+      </span>
+      {pages > 1 && (
+        <div className="pager">
+          <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+            ‹
+          </button>
+          {nums.map((n, i) => (
+            <span key={n} style={{ display: 'contents' }}>
+              {i > 0 && n - nums[i - 1] > 1 && <span className="faint">…</span>}
+              <button aria-current={n === page ? 'page' : undefined} onClick={() => setPage(n)}>
+                {n + 1}
+              </button>
+            </span>
+          ))}
+          <button disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
+            ›
+          </button>
+        </div>
+      )}
     </div>
   )
+}
+
+function PlatformIcon({ p }: { p: string }) {
+  return p === 'x' ? <XLogo size={12} /> : <Send size={12} />
 }
 
 export function AccountsSection() {
+  const [tab, setTab] = useState<'mine' | 'pool'>('mine')
+  const [platform, setPlatform] = useState<Platform>('all')
+  const [q, setQ] = useState('')
+  const [counts, setCounts] = useState({ mine: 0, pool: 0 })
+  const setCount = useCallback((k: 'mine' | 'pool', n: number) => setCounts((c) => (c[k] === n ? c : { ...c, [k]: n })), [])
+
+  // Sekme açılmadan da havuz sayısı görünsün
+  useEffect(() => {
+    supabase
+      .from('shared_accounts')
+      .select('id', { count: 'exact', head: true })
+      .then(({ count }) => count != null && setCount('pool', count))
+  }, [setCount])
+
   return (
-    <div className="stack">
-      <MyAccounts />
-      <SharedPool />
+    <div className="stack" style={{ gap: 10 }}>
+      <label className="search">
+        <Search size={14} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tab === 'mine' ? 'Hesaplarımda ara' : 'Ortak havuzda ara'} />
+      </label>
+      <div className="row" style={{ gap: 2 }}>
+        {(['all', 'x', 'telegram'] as Platform[]).map((p) => (
+          <button
+            key={p}
+            className={`icon-btn ${platform === p ? 'on' : ''}`}
+            style={platform === p ? { background: 'var(--soft-2)' } : undefined}
+            title={p === 'all' ? 'Tümü' : p === 'x' ? 'X' : 'Telegram'}
+            onClick={() => setPlatform(p)}
+          >
+            {p === 'all' ? <Layers size={13} /> : <PlatformIcon p={p} />}
+          </button>
+        ))}
+      </div>
+      <div className="seg">
+        <button className={`seg-btn ${tab === 'mine' ? 'on' : ''}`} onClick={() => setTab('mine')}>
+          Benim hesaplarım <span className="faint">{counts.mine}</span>
+        </button>
+        <button className={`seg-btn ${tab === 'pool' ? 'on' : ''}`} onClick={() => setTab('pool')}>
+          Ortak havuz <span className="faint">{counts.pool}</span>
+        </button>
+      </div>
+      {tab === 'mine' ? (
+        <MyAccounts q={q} platform={platform} setCount={(n) => setCount('mine', n)} />
+      ) : (
+        <SharedPool q={q} platform={platform} setCount={(n) => setCount('pool', n)} />
+      )}
     </div>
   )
 }
 
-function MyAccounts() {
+function MyAccounts({ q, platform, setCount }: { q: string; platform: Platform; setCount: (n: number) => void }) {
   const { profile } = useAuth()
+  const { go } = useNav()
   const [rows, setRows] = useState<MySource[]>([])
-  const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
 
   const load = useCallback(async () => {
@@ -78,6 +146,8 @@ function MyAccounts() {
   useEffect(() => {
     load()
   }, [load])
+  useEffect(() => setCount(rows.length), [rows.length, setCount])
+  useEffect(() => setPage(0), [q, platform])
 
   const update = async (s: MySource, patch: Partial<MySource>) => {
     setRows((cur) => cur.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
@@ -85,74 +155,87 @@ function MyAccounts() {
     if (patch.notify && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission()
   }
 
-  const filtered = useMemo(() => rows.filter((r) => r.title.toLocaleLowerCase('tr').includes(q.toLocaleLowerCase('tr'))), [rows, q])
+  const filtered = useMemo(
+    () => rows.filter((r) => (platform === 'all' || r.type === platform) && r.title.toLocaleLowerCase('tr').includes(q.toLocaleLowerCase('tr'))),
+    [rows, q, platform]
+  )
 
   return (
-    <div className="card stack">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0 }}>Benim hesaplarım ({rows.filter((r) => r.is_active).length} izleniyor)</h2>
+    <>
+      {filtered.length === 0 ? (
+        <div className="empty">{rows.length ? 'Aramaya uyan hesap yok.' : 'Henüz izlenen hesap yok.'}</div>
+      ) : (
+        <div className="list">
+          {filtered.slice(page * PAGE, (page + 1) * PAGE).map((s) => (
+            <div key={s.id} className={`list-row ${s.is_active ? '' : 'dim'}`}>
+              <button
+                className="circle"
+                role="checkbox"
+                aria-checked={s.is_active}
+                title={s.is_active ? 'İzleniyor — durdurmak için tıklayın' : 'İzlenmiyor — başlatmak için tıklayın'}
+                onClick={() => update(s, { is_active: !s.is_active })}
+              >
+                {s.is_active && <Check size={10} strokeWidth={4} />}
+              </button>
+              <span className="faint">
+                <PlatformIcon p={s.type} />
+              </span>
+              <div className="list-row-main">
+                <span className="list-row-title ellipsis">{s.title}</span>
+              </div>
+              <button
+                className={`muted-pill ${s.muted ? 'on' : ''}`}
+                title="Sessize alınan hesabın kartları akışta görünmez; adresleri yine sinyal olarak işlenir"
+                onClick={() => update(s, { muted: !s.muted })}
+              >
+                <VolumeX size={11} /> {s.muted ? 'Sessiz' : 'Sesli'}
+              </button>
+              <div className="list-row-actions">
+                <button className={`icon-btn ${s.notify ? 'on' : ''}`} title={s.notify ? 'Bildirim açık' : 'Bildirim kapalı'} onClick={() => update(s, { notify: !s.notify })}>
+                  {s.notify ? <Bell size={13} /> : <BellOff size={13} />}
+                </button>
+                {s.type === 'x' && (
+                  <a className="icon-btn" title="X'te aç" href={`https://x.com/${s.title.replace(/^@/, '')}`} target="_blank" rel="noreferrer">
+                    <ExternalLink size={13} />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Pager page={page} total={filtered.length} setPage={setPage} />
+      <div className="row">
         <button
           className="btn btn-sm"
           disabled={!rows.length}
           onClick={() =>
             download(
               'memebot-hesaplarim.csv',
-              toCsv(rows.map((r) => ({ platform: r.type, handle: r.title.replace(/^@/, ''), id: r.chat_id, izleniyor: r.is_active ? 'evet' : 'hayır' })), ['platform', 'handle', 'id', 'izleniyor'])
+              toCsv(
+                rows.map((r) => ({ platform: r.type, handle: r.title.replace(/^@/, ''), id: r.chat_id, izleniyor: r.is_active ? 'evet' : 'hayır' })),
+                ['platform', 'handle', 'id', 'izleniyor']
+              )
             )
           }
         >
-          CSV indir
+          <Download size={13} /> Dışa aktar
+        </button>
+        <span className="spacer" />
+        <button className="btn btn-sm btn-primary" onClick={() => go('settings', 'sources')}>
+          <Plus size={13} /> Hesap ekle
         </button>
       </div>
-      <p className="muted">
-        Telegram kanalları ve X izleyicileri <b>Kaynaklar</b> ekranından eklenir. <b>Sessize al</b>: kartlar akışta görünmez ama içindeki adresler
-        yine sinyal olarak işlenir. <b>Bildirim</b>: yeni gönderide masaüstü bildirimi.
-      </p>
-      <input value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} placeholder="Hesap ara" />
-      {filtered.length === 0 ? (
-        <p className="faint">Hesap yok.</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Hesap</th>
-              <th>Platform</th>
-              <th>İzle</th>
-              <th>Sessiz</th>
-              <th>Bildirim</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(page * PAGE, (page + 1) * PAGE).map((s) => (
-              <tr key={s.id} style={!s.is_active ? { opacity: 0.55 } : undefined}>
-                <td>{s.title}</td>
-                <td className="muted">{s.type === 'x' ? 'X' : 'Telegram'}</td>
-                <td>
-                  <input type="checkbox" checked={s.is_active} onChange={(e) => update(s, { is_active: e.target.checked })} />
-                </td>
-                <td>
-                  <input type="checkbox" checked={s.muted} onChange={(e) => update(s, { muted: e.target.checked })} />
-                </td>
-                <td>
-                  <input type="checkbox" checked={s.notify} onChange={(e) => update(s, { notify: e.target.checked })} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <Pager page={page} total={filtered.length} setPage={setPage} />
-    </div>
+    </>
   )
 }
 
-function SharedPool() {
+function SharedPool({ q, platform, setCount }: { q: string; platform: Platform; setCount: (n: number) => void }) {
   const { profile } = useAuth()
   const founder = profile?.role === 'founder'
   const [rows, setRows] = useState<Shared[]>([])
-  const [form, setForm] = useState({ platform: 'x' as 'x' | 'telegram', handle: '', title: '', note: '' })
+  const [form, setForm] = useState<{ platform: 'x' | 'telegram'; handle: string; title: string; note: string } | null>(null)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-  const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
 
   const load = useCallback(async () => {
@@ -163,9 +246,12 @@ function SharedPool() {
   useEffect(() => {
     load()
   }, [load])
+  useEffect(() => setCount(rows.length), [rows.length, setCount])
+  useEffect(() => setPage(0), [q, platform])
 
   const add = async (e: FormEvent) => {
     e.preventDefault()
+    if (!form) return
     const handle = form.handle.trim().replace(/^@/, '').replace(/^https?:\/\/(x\.com|twitter\.com|t\.me)\//, '')
     const { error } = await supabase
       .from('shared_accounts')
@@ -192,80 +278,91 @@ function SharedPool() {
   }
 
   const filtered = useMemo(
-    () => rows.filter((r) => `${r.handle} ${r.title ?? ''} ${r.note ?? ''}`.toLocaleLowerCase('tr').includes(q.toLocaleLowerCase('tr'))),
-    [rows, q]
+    () =>
+      rows.filter(
+        (r) => (platform === 'all' || r.platform === platform) && `${r.handle} ${r.title ?? ''} ${r.note ?? ''}`.toLocaleLowerCase('tr').includes(q.toLocaleLowerCase('tr'))
+      ),
+    [rows, q, platform]
   )
 
   return (
-    <div className="card stack">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0 }}>Ortak havuz ({rows.length})</h2>
-        <div className="row">
-          {founder && (
-            <label className="btn btn-sm" style={{ display: 'inline-block' }}>
-              CSV içe aktar
-              <input type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
-            </label>
-          )}
-          <button
-            className="btn btn-sm"
-            disabled={!rows.length}
-            onClick={() => download('memebot-ortak-havuz.csv', toCsv(rows as unknown as Record<string, unknown>[], ['platform', 'handle', 'title', 'note']))}
-          >
-            CSV indir
-          </button>
-        </div>
-      </div>
-      <p className="muted">
-        Founder'ın ekip için önerdiği hesaplar. Bir X hesabını izlemek için XFlux panelinde izleyici kurun; Telegram kanalı için kanala katılıp
-        Kaynaklar'dan seçin.
+    <>
+      <p className="faint" style={{ fontSize: 12 }}>
+        Founder'ın ekip için önerdiği hesaplar. X hesabını izlemek için XFlux panelinde izleyici kurun; Telegram kanalı için kanala katılıp Kaynaklar'dan seçin.
       </p>
       {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
-      {founder && (
-        <form className="row" onSubmit={add}>
+      {founder && form && (
+        <form className="row card" style={{ padding: 10 }} onSubmit={add}>
           <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value as 'x' | 'telegram' })}>
             <option value="x">X</option>
             <option value="telegram">Telegram</option>
           </select>
-          <input style={{ flex: 1 }} value={form.handle} onChange={(e) => setForm({ ...form, handle: e.target.value })} placeholder="@kullanıcı ya da kanal" required />
+          <input style={{ flex: 1 }} value={form.handle} onChange={(e) => setForm({ ...form, handle: e.target.value })} placeholder="@kullanıcı ya da kanal" required autoFocus />
           <input style={{ flex: 1 }} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ad (isteğe bağlı)" />
           <input style={{ flex: 1 }} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Not" />
           <button className="btn btn-primary">Ekle</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>
+            Kapat
+          </button>
         </form>
       )}
-      <input value={q} onChange={(e) => (setQ(e.target.value), setPage(0))} placeholder="Havuzda ara" />
       {filtered.length === 0 ? (
-        <p className="faint">Havuz boş.</p>
+        <div className="empty">{rows.length ? 'Aramaya uyan hesap yok.' : 'Havuz boş.'}</div>
       ) : (
-        <table>
-          <tbody>
-            {filtered.slice(page * PAGE, (page + 1) * PAGE).map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <a
-                    href={r.platform === 'x' ? `https://x.com/${r.handle}` : `https://t.me/${r.handle}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    @{r.handle}
-                  </a>{' '}
-                  <span className="muted">{r.title}</span>
-                </td>
-                <td className="muted">{r.platform === 'x' ? 'X' : 'Telegram'}</td>
-                <td className="faint">{r.note}</td>
-                <td style={{ textAlign: 'right' }}>
-                  {founder && (
-                    <button className="btn btn-xs btn-danger" onClick={() => supabase.from('shared_accounts').delete().eq('id', r.id).then(load)}>
-                      Kaldır
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="list">
+          {filtered.slice(page * PAGE, (page + 1) * PAGE).map((r) => (
+            <div key={r.id} className="list-row">
+              <span className="faint">
+                <PlatformIcon p={r.platform} />
+              </span>
+              <div className="list-row-main">
+                <span className="list-row-title ellipsis">
+                  @{r.handle} {r.title && <span className="muted" style={{ fontWeight: 400 }}>{r.title}</span>}
+                </span>
+                {r.note && <span className="list-row-sub ellipsis">{r.note}</span>}
+              </div>
+              <div className="list-row-actions">
+                <a
+                  className="icon-btn"
+                  title="Aç"
+                  href={r.platform === 'x' ? `https://x.com/${r.handle}` : `https://t.me/${r.handle}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink size={13} />
+                </a>
+                {founder && (
+                  <button className="icon-btn danger" title="Havuzdan kaldır" onClick={() => supabase.from('shared_accounts').delete().eq('id', r.id).then(load)}>
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
       <Pager page={page} total={filtered.length} setPage={setPage} />
-    </div>
+      <div className="row">
+        {founder && (
+          <label className="btn btn-sm" style={{ display: 'inline-flex', flexDirection: 'row', fontSize: 11.5, color: 'var(--text)' }}>
+            <Upload size={13} /> İçe aktar
+            <input type="file" accept=".csv,text/csv" hidden onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
+          </label>
+        )}
+        <button
+          className="btn btn-sm"
+          disabled={!rows.length}
+          onClick={() => download('memebot-ortak-havuz.csv', toCsv(rows as unknown as Record<string, unknown>[], ['platform', 'handle', 'title', 'note']))}
+        >
+          <Download size={13} /> Dışa aktar
+        </button>
+        <span className="spacer" />
+        {founder && (
+          <button className="btn btn-sm btn-primary" onClick={() => setForm({ platform: 'x', handle: '', title: '', note: '' })}>
+            <Plus size={13} /> Hesap ekle
+          </button>
+        )}
+      </div>
+    </>
   )
 }

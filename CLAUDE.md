@@ -5,7 +5,7 @@ Bu projeye yeni başlıyorsan **önce `docs/HANDOFF.md`'yi oku** (tam devir dok�
 ## Kısa kurallar
 
 - Kullanıcıyla **Türkçe** konuş; UI metinleri ve kod yorumları Türkçe.
-- **Sade tasarım:** tek tonlu koyu tema; renk sadece anlam için (yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı).
+- **Tasarım (J7 tarzı):** kompakt koyu tema; ortalanmış üst menü, alt durum çubuğu (Ücret popover'ı orada), ikonlu sol menülü Ayarlar. Vurgu rengi (varsayılan indigo) sadece seçili öğe/birincil buton için; anlam renkleri sabit (yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı). İkonlar `lucide-react`.
 - Repo **public**: sır yok, commit'lenmez, loglanmaz, sohbette istenmez. Sırlar `safeStorage` ile yerelde (v2'de motor sunucusunda şifreli).
 - Mimari: iş yapan her şey **motorda** (`src/engine`, Electron'a bağımlı değil). Arayüz sadece Supabase'e niyet/komut yazar.
 - Para güvenliği sözleşmeleri:

@@ -10,16 +10,14 @@ import { EngineProvider } from './lib/engine'
 import { OrdersProvider } from './lib/orders'
 import { APP_VERSION, desktop, isDesktop, versionLess } from './lib/platform'
 import { ApprovalsPage } from './pages/Approvals'
-import { RulesPage } from './pages/Rules'
 import { OrdersPage } from './pages/Orders'
-import { Layout, type Page } from './components/Layout'
+import { Layout } from './components/Layout'
 import { LoginPage } from './pages/Login'
 import { FeedPage } from './pages/Feed'
-import { SourcesPage } from './pages/Sources'
 import { TokenCheckPage } from './pages/TokenCheck'
 import { PositionsPage } from './pages/Positions'
 import { SettingsPage } from './pages/Settings'
-import { UsersPage } from './pages/Users'
+import { NavContext, type Page, type Section } from './lib/nav'
 
 export function App() {
   if (!supabaseConfigured) {
@@ -60,6 +58,7 @@ function useOutdated(enabled: boolean): string | null {
 function Gate() {
   const { loading, session, profile } = useAuth()
   const [page, setPage] = useState<Page>('feed')
+  const [section, setSection] = useState<Section>('accounts')
   const [checkTarget, setCheckTarget] = useState<{ mint: string; n: number } | null>(null)
   const outdated = useOutdated(!!profile)
 
@@ -87,6 +86,12 @@ function Gate() {
     setPage('token')
   }
 
+  const go = (p: Page, s?: Section) => {
+    if (p !== 'token') setCheckTarget(null)
+    if (s) setSection(s)
+    setPage(p)
+  }
+
   return (
     <KillSwitchProvider>
       <EngineProvider>
@@ -94,24 +99,17 @@ function Gate() {
           <PrefsProvider>
           <OrdersProvider>
           <DeployProvider>
-            <Shortcuts onNavigate={(p) => setPage(p)} />
-            <Layout
-              page={page}
-              onNavigate={(p) => {
-                setCheckTarget(null)
-                setPage(p)
-              }}
-            >
-              {page === 'feed' && <FeedPage onCheck={openCheck} />}
-              {page === 'approvals' && <ApprovalsPage onCheck={openCheck} />}
-              {page === 'sources' && <SourcesPage />}
-              {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
-              {page === 'positions' && <PositionsPage />}
-              {page === 'orders' && <OrdersPage />}
-              {page === 'rules' && <RulesPage />}
-              {page === 'settings' && <SettingsPage />}
-              {page === 'users' && profile.role === 'founder' && <UsersPage />}
-            </Layout>
+            <NavContext.Provider value={{ page, section, go }}>
+              <Shortcuts onNavigate={(p) => go(p)} />
+              <Layout>
+                {page === 'feed' && <FeedPage onCheck={openCheck} />}
+                {page === 'approvals' && <ApprovalsPage onCheck={openCheck} />}
+                {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
+                {page === 'positions' && <PositionsPage />}
+                {page === 'orders' && <OrdersPage />}
+                {page === 'settings' && <SettingsPage />}
+              </Layout>
+            </NavContext.Provider>
           </DeployProvider>
           </OrdersProvider>
           </PrefsProvider>

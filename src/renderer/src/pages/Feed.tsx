@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Eye, EyeOff, Filter, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { useEngine } from '../lib/engine'
@@ -23,17 +24,22 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const { open } = useDeploy()
   const { profile } = useAuth()
   const onDeploy = canTrade(profile?.role) ? open : undefined
-  return (
-    <div className="stack">
-      <div className="tabs">
-        <button className="tab" aria-selected={tab === 'feed'} onClick={() => setTab('feed')}>
-          Akış
-        </button>
-        <button className="tab" aria-selected={tab === 'signals'} onClick={() => setTab('signals')}>
-          Sinyaller
-        </button>
-      </div>
-      {tab === 'feed' ? <FeedList onCheck={onCheck} onDeploy={onDeploy} keywords={keywords} /> : <SignalsPanel onCheck={onCheck} />}
+  const tabs = (
+    <div className="pills">
+      <button className="pill" aria-selected={tab === 'feed'} onClick={() => setTab('feed')}>
+        Akış
+      </button>
+      <button className="pill" aria-selected={tab === 'signals'} onClick={() => setTab('signals')}>
+        Sinyaller
+      </button>
+    </div>
+  )
+  return tab === 'feed' ? (
+    <FeedList onCheck={onCheck} onDeploy={onDeploy} keywords={keywords} tabs={tabs} />
+  ) : (
+    <div className="page stack">
+      {tabs}
+      <SignalsPanel onCheck={onCheck} />
     </div>
   )
 }
@@ -47,34 +53,35 @@ function SourceChips() {
   const tgCount = sources.filter((s) => s.is_active).length
   const xCount = xs.filter((s) => s.is_active).length
   return (
-    <span className="row muted" style={{ gap: 14 }}>
-      <span className="row" style={{ gap: 6 }}>
+    <div className="feed-status">
+      <span>
         <span className={`dot ${tg.state === 'connected' ? 'on' : 'off'}`} />
         {tg.state === 'connected' ? `Telegram · ${tgCount} kanal` : 'Telegram bağlı değil'}
       </span>
-      <span className="row" style={{ gap: 6 }}>
+      <span>
         <span className={`dot ${x.state === 'polling' && xCount > 0 ? 'on' : 'off'}`} />
         {!x.configured ? 'X bağlı değil' : x.state === 'error' ? `X hatası: ${x.error ?? ''}` : `X · ${xCount} hesap`}
       </span>
-    </span>
+    </div>
   )
 }
 
 function FeedList({
   onCheck,
   onDeploy,
-  keywords
+  keywords,
+  tabs
 }: {
   onCheck: (mint: string) => void
   onDeploy?: CardActions['onDeploy']
   keywords: (KeywordRule & { color?: string | null })[]
+  tabs: ReactNode
 }) {
   const { profile } = useAuth()
   const { rule } = usePipeline()
   const { buy } = useOrders()
   const { online } = useEngine()
   const killSwitch = useKillSwitch()
-  const { open: openDeploy } = useDeploy()
   const [items, setItems] = useState<FeedItem[]>([])
   const [loaded, setLoaded] = useState(false)
   const [limit, setLimit] = useState(PAGE)
@@ -159,35 +166,32 @@ function FeedList({
   return (
     <div className="feed">
       <div className="feed-toolbar">
-        <SourceChips />
-        <div className="row" style={{ gap: 6 }}>
-          {onDeploy && (
-            <button className="btn btn-sm" title="Boş deploy formu" onClick={() => openDeploy()}>
-              ⚡ Deploy
+        {tabs}
+        <label className="search sm">
+          <Search size={13} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Akışta ara" />
+        </label>
+        <div className="pills">
+          {(['all', 'x', 'telegram'] as const).map((p) => (
+            <button key={p} className="pill" aria-selected={platform === p} onClick={() => setPlatform(p)}>
+              {p === 'all' ? 'Tümü' : p === 'x' ? 'X' : 'Telegram'}
             </button>
-          )}
-          <input className="input-sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Akışta ara" style={{ width: 180 }} />
-          <select className="input-sm" value={platform} onChange={(e) => setPlatform(e.target.value as typeof platform)}>
-            <option value="all">Tümü</option>
-            <option value="x">X</option>
-            <option value="telegram">Telegram</option>
-          </select>
-          <label className="row check">
-            <input type="checkbox" checked={withMint} onChange={(e) => setWithMint(e.target.checked)} />
-            Sadece adresliler
-          </label>
-          <label className="row check">
-            <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-            Gizlenenler
-          </label>
+          ))}
         </div>
+        <button className={`icon-btn ${withMint ? 'on' : ''}`} title="Sadece adresliler" aria-pressed={withMint} onClick={() => setWithMint((v) => !v)} style={withMint ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}>
+          <Filter size={14} />
+        </button>
+        <button className={`icon-btn ${showHidden ? 'on' : ''}`} title="Gizlenenleri göster" aria-pressed={showHidden} onClick={() => setShowHidden((v) => !v)} style={showHidden ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}>
+          {showHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
       </div>
+      <SourceChips />
 
       {loaded && visible.length === 0 ? (
         <div className="empty">
           {items.length ? 'Filtreye uyan gönderi yok.' : 'Henüz gönderi yok.'}
           <div className="faint" style={{ marginTop: 6 }}>
-            Kaynaklar ekranından Telegram kanalı ya da X hesabı izlemeye başlayınca gönderiler burada kart kart akar.
+            Ayarlar → Kaynaklar'dan Telegram kanalı ya da X hesabı izlemeye başlayınca gönderiler burada kart kart akar.
           </div>
         </div>
       ) : (
@@ -196,7 +200,7 @@ function FeedList({
 
       {items.length >= limit && (
         <div style={{ textAlign: 'center' }}>
-          <button className="btn btn-sm" onClick={() => setLimit((l) => l + PAGE)}>
+          <button className="btn btn-sm btn-ghost" onClick={() => setLimit((l) => l + PAGE)}>
             Daha fazla
           </button>
         </div>

@@ -20,6 +20,8 @@ import {
 } from '../../../shared/deploy'
 import type { FeedItem } from '../../../shared/feed'
 import { shortAddr, useWallets } from '../lib/wallets'
+import { SolMark } from '../pages/settings/Wallets'
+import { Plus, Split, Timer, Trash2, Upload, Wallet as WalletIcon, X, Zap } from 'lucide-react'
 
 // Token deploy formu (modal ya da yan panel — Ayarlar → Deploy). Gönderiden otomatik doldurur.
 // Deneme modunda (Kurallar → Gerçek işlem kapalı) motor isteği sadece hazırlar ve kaydeder; GMGN'e gitmez.
@@ -54,18 +56,25 @@ export function DeployProvider({ children }: { children: ReactNode }) {
 
 const b64Bytes = (b64: string) => Math.floor((b64.length * 3) / 4)
 
-// Dosyayı base64'e çevir; 2 MB'tan büyükse 1024 px JPEG'e küçült
+// Dosyayı base64'e çevir; 2 MB'tan büyükse 1024 px JPEG'e küçült.
+// blob: adresi CSP'de (img-src) yasak; önizleme ve küçültme data: adresiyle yapılır.
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(file)
+  })
+}
+
 async function fileToBase64(file: File): Promise<{ data: string; bytes: number; preview: string }> {
-  const url = URL.createObjectURL(file)
   try {
+    const src = await readAsDataUrl(file)
     if (file.size <= IMAGE_MAX_BYTES && /^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
-      const buf = new Uint8Array(await file.arrayBuffer())
-      let s = ''
-      for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000))
-      return { data: btoa(s), bytes: buf.length, preview: url }
+      return { data: src.slice(src.indexOf(',') + 1), bytes: file.size, preview: src }
     }
     const img = new Image()
-    img.src = url
+    img.src = src
     await img.decode()
     const k = Math.min(1, 1024 / Math.max(img.width, img.height))
     const c = document.createElement('canvas')
@@ -205,43 +214,37 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
           }
         }}
       >
-        <header className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="row">
-            <h1>Token deploy</h1>
-            <span className={`badge ${live ? 'fail' : 'warn'}`}>{live ? 'GERÇEK' : 'DENEME — GMGN\'e gönderilmez'}</span>
+        <header className="modal-head">
+          <h1>
+            Token Deploy
+            <span className={`badge ${live ? 'fail' : 'warn'}`} title={live ? 'Gerçek işlem açık' : "Deneme modu — GMGN'e gönderilmez"}>
+              {live ? 'GERÇEK' : 'DENEME'}
+            </span>
+          </h1>
+          <div className="row" style={{ gap: 4 }}>
+            <span className="wallet-chip" title="Varsayılan cüzdan (alım-satım da bu cüzdandan yapılır)">
+              <WalletIcon size={12} />
+              <select value={me?.gmgn.wallet ?? ''} disabled={!!result || wallets.busy} onChange={(e) => e.target.value && wallets.makeDefault(e.target.value)}>
+                {!me?.gmgn.wallet && <option value="">cüzdan yok</option>}
+                {wallets.rows
+                  .filter((w) => !w.hidden || w.isDefault)
+                  .map((w) => (
+                    <option key={w.address} value={w.address}>
+                      {w.label ?? shortAddr(w.address)}
+                      {w.balance !== undefined ? ` · ${w.balance.toFixed(3)}` : ''}
+                    </option>
+                  ))}
+              </select>
+            </span>
+            <button className="x-btn" title="Kapat (Esc)" onClick={onClose}>
+              <X size={15} />
+            </button>
           </div>
-          <button className="btn btn-sm" onClick={onClose}>
-            Kapat
-          </button>
         </header>
-
-        <div className="row muted" style={{ fontSize: 12 }}>
-          Cüzdan:
-          <select
-            className="input-sm"
-            value={me?.gmgn.wallet ?? ''}
-            disabled={!!result || wallets.busy}
-            onChange={(e) => e.target.value && wallets.makeDefault(e.target.value)}
-            title="Varsayılan cüzdanı değiştirir (alım-satım da bu cüzdandan yapılır)"
-          >
-            {!me?.gmgn.wallet && <option value="">seçilmedi</option>}
-            {wallets.rows
-              .filter((w) => !w.hidden || w.isDefault)
-              .map((w) => (
-                <option key={w.address} value={w.address}>
-                  {w.label ? `${w.label} · ` : ''}
-                  {shortAddr(w.address)}
-                  {w.balance !== undefined ? ` · ${w.balance.toFixed(3)} SOL` : ''}
-                </option>
-              ))}
-          </select>
-          · Ücret P
-          {form.preset}: öncelik {fees.priorityFeeSol} · tip {fees.tipFeeSol} SOL · slippage {fees.slippage === 'auto' ? 'otomatik' : `%${fees.slippage}`}
-        </div>
 
         {item && (
           <div className="post-ref">
-            <div className="faint">Kaynak gönderi · {item.author.name ?? item.author.handle}</div>
+            <span className="post-ref-label">Kaynak gönderi · {item.author.name ?? item.author.handle}</span>
             <div className="post-ref-text">{item.text}</div>
           </div>
         )}
@@ -250,45 +253,72 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
           <DeployResultView result={result} deploy={deploy} onClose={onClose} />
         ) : (
           <>
-            <div className="grid-2">
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 8 }}>
               <label>
-                Ad ({form.name.length}/{NAME_MAX})
-                <input ref={nameRef} maxLength={NAME_MAX} value={form.name} onChange={(e) => set('name', e.target.value)} />
+                <span className="field-label">
+                  Ad <span className="faint">{form.name.length}/{NAME_MAX}</span>
+                </span>
+                <input ref={nameRef} maxLength={NAME_MAX} value={form.name} placeholder="Token adı" onChange={(e) => set('name', e.target.value)} />
               </label>
               <label>
-                Sembol ({form.symbol.length}/{SYMBOL_MAX})
-                <div className="row" style={{ flexWrap: 'nowrap' }}>
-                  <input style={{ flex: 1 }} maxLength={SYMBOL_MAX} value={form.symbol} onChange={(e) => set('symbol', e.target.value.toUpperCase())} />
-                  <button className="btn btn-sm" title="Addan üret" onClick={() => set('symbol', symbolFor(form.name))}>
+                <span className="field-label">
+                  Sembol <span className="faint">{form.symbol.length}/{SYMBOL_MAX}</span>
+                  <button type="button" className="chip" style={{ marginLeft: 'auto', padding: '0 6px' }} title="Addan üret" onClick={() => set('symbol', symbolFor(form.name))}>
                     Otomatik
                   </button>
-                </div>
+                </span>
+                <input maxLength={SYMBOL_MAX} value={form.symbol} placeholder="Sembol" onChange={(e) => set('symbol', e.target.value.toUpperCase())} />
               </label>
             </div>
             {suggestions.length > 0 && (
               <div className="row" style={{ gap: 4 }}>
-                <span className="faint" style={{ fontSize: 12 }}>
-                  Öneriler:
-                </span>
                 {suggestions.map((s) => (
-                  <button key={s} className="chip" onClick={() => pickName(s)}>
+                  <button key={s} className={`chip ${form.name === s ? 'on' : ''}`} onClick={() => pickName(s)}>
                     {s}
                   </button>
                 ))}
               </div>
             )}
 
-            <div className="stack" style={{ gap: 6 }}>
-              <span className="muted" style={{ fontSize: 12 }}>
-                Görsel
-              </span>
-              <div className="row" style={{ alignItems: 'flex-start' }}>
-                <div className="deploy-img">{preview ? <img src={preview} alt="" referrerPolicy="no-referrer" /> : <span className="faint">yok</span>}</div>
+            <label>
+              <span className="field-label">Website</span>
+              <input value={form.website ?? ''} onChange={(e) => set('website', e.target.value || undefined)} placeholder="https://example.com" />
+            </label>
+            <label>
+              <span className="field-label">Gönderi (X)</span>
+              <input value={form.twitter ?? ''} onChange={(e) => set('twitter', e.target.value || undefined)} placeholder="https://x.com/…" />
+            </label>
+            <label>
+              <span className="field-label">Telegram</span>
+              <input value={form.telegram ?? ''} onChange={(e) => set('telegram', e.target.value || undefined)} placeholder="https://t.me/…" />
+            </label>
+
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span className="field-label">Görsel</span>
+              <div className="row" style={{ flexWrap: 'nowrap' }}>
+                <label className="deploy-img" title="Görsel yükle" style={{ cursor: 'pointer' }}>
+                  {preview ? <img src={preview} alt="" referrerPolicy="no-referrer" /> : <Plus size={18} />}
+                  <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+                </label>
                 <div className="row" style={{ gap: 4 }}>
+                  {!preview && (
+                    <span className="faint" style={{ fontSize: 12, width: '100%' }}>
+                      Görsel seçilmedi
+                    </span>
+                  )}
+                  <label className="chip" style={{ display: 'inline-flex', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+                    <Upload size={11} /> Yükle
+                    <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+                  </label>
+                  {snapshot && (
+                    <button className="chip" onClick={useSnapshot}>
+                      Kartın görüntüsü
+                    </button>
+                  )}
                   {item?.media.map((m, i) => (
                     <button
                       key={m.url}
-                      className="btn btn-xs"
+                      className="chip"
                       onClick={() => {
                         set('image', { kind: 'url', url: m.url })
                         setPreview(m.url)
@@ -297,77 +327,84 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
                       Gönderi görseli {i + 1}
                     </button>
                   ))}
-                  {snapshot && (
-                    <button className="btn btn-xs" onClick={useSnapshot}>
-                      Kartın görüntüsü
-                    </button>
-                  )}
-                  <label className="btn btn-xs">
-                    Yükle
-                    <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-                  </label>
                 </div>
               </div>
             </div>
 
-            <div className="grid-2">
-              <label>
-                Platform
-                <select value={form.platform} onChange={(e) => set('platform', e.target.value as DeployPlatform)}>
-                  {(Object.keys(PLATFORM_LABEL) as DeployPlatform[]).map((p) => (
-                    <option key={p} value={p}>
-                      {PLATFORM_LABEL[p]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Geliştirici alımı (SOL) <span className="faint">· en fazla {rule.limits.maxBuySol}</span>
-                <input type="number" min={0} step="any" value={form.buySol} onChange={(e) => set('buySol', Math.max(0, Number(e.target.value) || 0))} />
-              </label>
-              <label>
-                X bağlantısı
-                <input value={form.twitter ?? ''} onChange={(e) => set('twitter', e.target.value || undefined)} placeholder="https://x.com/…" />
-              </label>
-              <label>
-                Website
-                <input value={form.website ?? ''} onChange={(e) => set('website', e.target.value || undefined)} placeholder="https://…" />
-              </label>
-              <label>
-                Telegram
-                <input value={form.telegram ?? ''} onChange={(e) => set('telegram', e.target.value || undefined)} placeholder="https://t.me/…" />
-              </label>
-              <label>
-                Ücret preset'i
-                <select value={form.preset} onChange={(e) => set('preset', Number(e.target.value) as 1 | 2 | 3)}>
-                  {[1, 2, 3].map((s) => (
-                    <option key={s} value={s}>
-                      P{s}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="plat-grid">
+              {(Object.keys(PLATFORM_LABEL) as DeployPlatform[]).map((p) => (
+                <button key={p} className={`plat ${form.platform === p ? 'on' : ''}`} onClick={() => set('platform', p)}>
+                  {PLATFORM_LABEL[p]}
+                </button>
+              ))}
             </div>
+
+            <div className="opt-grid">
+              {form.platform !== 'bonk' && (
+                <button
+                  className={`opt ${form.feeShares.length ? 'on' : ''}`}
+                  onClick={() => set('feeShares', form.feeShares.length ? [] : [{ provider: 'twitter', username: '', percent: 100 }])}
+                >
+                  <input type="checkbox" readOnly checked={form.feeShares.length > 0} tabIndex={-1} />
+                  <Split size={13} /> Ücret paylaşımı
+                </button>
+              )}
+              <button
+                className={`opt ${form.autoSell.length ? 'on' : ''}`}
+                onClick={() => set('autoSell', form.autoSell.length ? [] : [{ type: 'delay', seconds: 60, percent: 50 }])}
+              >
+                <input type="checkbox" readOnly checked={form.autoSell.length > 0} tabIndex={-1} />
+                <Timer size={13} /> Otomatik satış
+              </button>
+            </div>
+
+            {form.platform !== 'bonk' && form.feeShares.length > 0 && <FeeShares shares={form.feeShares} total={shareTotal} onChange={(v) => set('feeShares', v)} />}
+            {form.autoSell.length > 0 && <AutoSells rows={form.autoSell} onChange={(v) => set('autoSell', v)} />}
+
             <label>
-              Açıklama
+              <span className="field-label">Açıklama</span>
               <textarea rows={2} maxLength={500} value={form.description ?? ''} onChange={(e) => set('description', e.target.value || undefined)} />
             </label>
 
-            {form.platform !== 'bonk' && (
-              <FeeShares shares={form.feeShares} total={shareTotal} onChange={(v) => set('feeShares', v)} />
-            )}
-            <AutoSells rows={form.autoSell} onChange={(v) => set('autoSell', v)} />
+            <label>
+              <span className="field-label">
+                Geliştirici alımı <span className="faint">· en fazla {rule.limits.maxBuySol} SOL</span>
+              </span>
+              <span className="amount-bar">
+                <SolMark size={14} />
+                <input type="number" min={0} step="any" value={form.buySol} onChange={(e) => set('buySol', Math.max(0, Number(e.target.value) || 0))} />
+                <span className="faint" style={{ fontSize: 11, fontWeight: 600 }}>
+                  SOL
+                </span>
+              </span>
+            </label>
 
             {error && <div className="notice error">{error}</div>}
             {killSwitch && <div className="notice error">İşlemler founder tarafından durduruldu; deploy yapılamaz.</div>}
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="faint" style={{ fontSize: 12 }}>
-                {errors.length ? errors[0] : 'Enter ile gönder · Esc ile kapat'}
-              </span>
-              <button className="btn btn-primary" disabled={busy || !allowed || errors.length > 0} onClick={submit}>
-                {busy ? 'Gönderiliyor…' : live ? 'Deploy' : 'Deneme deploy'}
+            <div className="deploy-foot">
+              <select
+                className="input-sm"
+                style={{ height: 36 }}
+                value={form.preset}
+                title={`Ücret P${form.preset}: öncelik ${fees.priorityFeeSol} · bribe ${fees.tipFeeSol} SOL · slippage ${fees.slippage === 'auto' ? 'otomatik' : `%${fees.slippage}`}`}
+                onChange={(e) => set('preset', Number(e.target.value) as 1 | 2 | 3)}
+              >
+                {[1, 2, 3].map((s) => (
+                  <option key={s} value={s}>
+                    P{s}
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-primary" disabled={busy || !allowed || errors.length > 0} onClick={submit} title={errors[0]}>
+                <Zap size={14} />
+                {busy ? 'Gönderiliyor…' : `${live ? 'Deploy' : 'Deneme deploy'} (Enter)`}
               </button>
             </div>
+            {errors.length > 0 && (form.name || form.symbol) && (
+              <span className="faint" style={{ fontSize: 11, textAlign: 'center' }}>
+                {errors[0]}
+              </span>
+            )}
           </>
         )}
       </div>
@@ -377,9 +414,9 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
 
 function FeeShares({ shares, total, onChange }: { shares: FeeShare[]; total: number; onChange: (v: FeeShare[]) => void }) {
   return (
-    <div className="stack" style={{ gap: 6 }}>
+    <div className="sub-panel">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted" style={{ fontSize: 12 }}>
+        <span className="field-label">
           Ücret paylaşımı {shares.length > 0 && <span className={Math.abs(total - 100) < 1e-9 ? 'pos' : 'neg'}>· toplam %{+total.toFixed(2)}</span>}
         </span>
         <button className="btn btn-xs" disabled={shares.length >= 10} onClick={() => onChange([...shares, { provider: 'twitter', username: '', percent: shares.length ? 0 : 100 }])}>
@@ -408,8 +445,8 @@ function FeeShares({ shares, total, onChange }: { shares: FeeShare[]; total: num
             onChange={(e) => onChange(shares.map((x, j) => (j === i ? { ...x, percent: Math.max(0, Number(e.target.value) || 0) } : x)))}
           />
           <span className="faint">%</span>
-          <button className="btn btn-xs btn-danger" onClick={() => onChange(shares.filter((_, j) => j !== i))}>
-            Sil
+          <button className="icon-btn sm danger" title="Sil" onClick={() => onChange(shares.filter((_, j) => j !== i))}>
+            <Trash2 size={12} />
           </button>
         </div>
       ))}
@@ -419,9 +456,9 @@ function FeeShares({ shares, total, onChange }: { shares: FeeShare[]; total: num
 
 function AutoSells({ rows, onChange }: { rows: AutoSell[]; onChange: (v: AutoSell[]) => void }) {
   return (
-    <div className="stack" style={{ gap: 6 }}>
+    <div className="sub-panel">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted" style={{ fontSize: 12 }}>
+        <span className="field-label">
           Otomatik satış <span className="faint">· geliştirici alımı için</span>
         </span>
         <button className="btn btn-xs" disabled={rows.length >= 5} onClick={() => onChange([...rows, { type: 'delay', seconds: 60, percent: 50 }])}>
@@ -473,8 +510,8 @@ function AutoSells({ rows, onChange }: { rows: AutoSell[]; onChange: (v: AutoSel
             onChange={(e) => onChange(rows.map((x, j) => (j === i ? { ...x, percent: Math.min(100, Math.max(1, Number(e.target.value) || 1)) } : x)))}
           />
           <span className="faint">sat</span>
-          <button className="btn btn-xs btn-danger" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
-            Sil
+          <button className="icon-btn sm danger" title="Sil" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
+            <Trash2 size={12} />
           </button>
         </div>
       ))}

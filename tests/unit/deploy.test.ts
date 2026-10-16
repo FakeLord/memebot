@@ -57,4 +57,9 @@ describe('deploy formu', () => {
     expect(symbolFor('Doge')).toBe('DOGE')
     expect(symbolFor('Köpek Coin')).toBe('KOPEKCOIN')
   })
+
+  it('ad önerilerine token adresi, bağlantı ve CA girmez', () => {
+    const text = 'Yeni bir şey geliyor $FROG "FROG to the moon" CA: LSmcXmkaCLxtSDyL1aB3VzXuCFAGzNWFqnBY7MTa https://Pump.Fun/Abc'
+    expect(nameSuggestions(text)).toEqual(['FROG to the moon', 'FROG', 'Yeni'])
+  })
 })

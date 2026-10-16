@@ -62,14 +62,14 @@ export function applyTheme(t: ThemeSetting | null | undefined) {
   const r = document.documentElement.style
   r.setProperty('--bg', c.bg)
   r.setProperty('--surface', c.surface)
-  r.setProperty('--surface-2', `color-mix(in srgb, ${c.surface} 85%, ${c.text} 6%)`)
+  r.setProperty('--surface-2', `color-mix(in srgb, ${c.surface} 92%, ${c.text} 6%)`)
   r.setProperty('--accent', c.accent)
   r.setProperty('--accent-text', isLight(c.accent) ? '#0b0b0c' : '#ffffff')
   r.setProperty('--text', c.text)
   r.setProperty('--muted', c.muted)
   r.setProperty('--faint', `color-mix(in srgb, ${c.muted} 65%, ${c.bg})`)
   r.setProperty('--border', c.border)
-  r.setProperty('--hl', `color-mix(in srgb, ${c.text} 16%, ${c.surface})`)
+  r.setProperty('--hl', `color-mix(in srgb, ${c.text} 18%, ${c.surface})`)
   r.setProperty('color-scheme', isLight(c.bg) ? 'light' : 'dark')
 }
 

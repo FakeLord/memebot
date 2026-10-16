@@ -1,0 +1,28 @@
+import { createContext, useContext } from 'react'
+
+// Sayfa gezintisi: üst menüdeki sayfalar + Ayarlar'ın sol menü bölümleri.
+// Herhangi bir bileşen useNav().go(...) ile başka sayfaya/bölüme geçebilir.
+
+export type Page = 'feed' | 'approvals' | 'positions' | 'orders' | 'token' | 'settings'
+
+export type Section =
+  | 'accounts'
+  | 'sources'
+  | 'appearance'
+  | 'keywords'
+  | 'rules'
+  | 'connections'
+  | 'deploy'
+  | 'wallets'
+  | 'shortcuts'
+  | 'users'
+  | 'about'
+
+interface NavCtx {
+  page: Page
+  section: Section
+  go: (page: Page, section?: Section) => void
+}
+
+export const NavContext = createContext<NavCtx>({ page: 'feed', section: 'accounts', go: () => undefined })
+export const useNav = () => useContext(NavContext)

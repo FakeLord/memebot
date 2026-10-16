@@ -1,6 +1,6 @@
 # MemeBot — "Latent" tasarım dili
 
-Tarih: 16 Ekim 2026 · Durum: **öneri — uygulamaya henüz taşınmadı**
+Tarih: 16 Ekim 2026 · Durum: **uygulanmadı — yerine J7 tarzı tasarım seçildi** (bkz. CLAUDE.md → Tasarım)
 
 | Dosya | İçerik |
 |---|---|

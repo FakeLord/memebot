@@ -77,12 +77,26 @@ export interface ThemeColors {
   border: string
 }
 
+// Anahtarlar kullanıcı ayarında saklanır: var olanları (default, slate, midnight, graphite, light) silmeyin.
 export const THEMES: Record<string, { label: string; colors: ThemeColors }> = {
-  default: { label: 'Varsayılan', colors: { bg: '#0b0b0c', surface: '#121214', accent: '#f2f2f3', text: '#e6e6e8', muted: '#8b8b92', border: '#26262a' } },
-  slate: { label: 'Slate', colors: { bg: '#0d1117', surface: '#151b23', accent: '#e6edf3', text: '#e6edf3', muted: '#8b949e', border: '#262f3a' } },
-  midnight: { label: 'Midnight', colors: { bg: '#07070d', surface: '#0f0f19', accent: '#e8e8f0', text: '#e2e2ea', muted: '#83839a', border: '#22222f' } },
-  graphite: { label: 'Grafit', colors: { bg: '#161616', surface: '#1e1e1e', accent: '#f0f0f0', text: '#e8e8e8', muted: '#949494', border: '#303030' } },
-  light: { label: 'Açık', colors: { bg: '#f6f6f7', surface: '#ffffff', accent: '#18181b', text: '#18181b', muted: '#6b6b73', border: '#e2e2e6' } }
+  discord: { label: 'Discord', colors: { bg: '#313338', surface: '#2b2d31', accent: '#5865f2', text: '#f2f3f5', muted: '#949ba4', border: '#3f4147' } },
+  default: { label: 'Koyu', colors: { bg: '#111113', surface: '#1a1a1d', accent: '#5865f2', text: '#ececf1', muted: '#8e8e99', border: '#2a2a2f' } },
+  slate: { label: 'Slate', colors: { bg: '#0f1318', surface: '#171c23', accent: '#8b9bb4', text: '#e6edf3', muted: '#8b949e', border: '#262f3a' } },
+  monkeytype: { label: 'MonkeyType', colors: { bg: '#323437', surface: '#2c2e31', accent: '#e2b714', text: '#d1d0c5', muted: '#7e8084', border: '#3d3f43' } },
+  graphite: { label: 'Modern Koyu', colors: { bg: '#0a0a0a', surface: '#151515', accent: '#3b82f6', text: '#ededed', muted: '#8f8f8f', border: '#262626' } },
+  midnight: { label: 'Gece Mavisi', colors: { bg: '#0a0f1f', surface: '#111a33', accent: '#4f6bff', text: '#e3e8ff', muted: '#8590b8', border: '#1f2a4a' } },
+  dusk: { label: 'Alacakaranlık', colors: { bg: '#1c1a22', surface: '#26232d', accent: '#e0727f', text: '#ece8f0', muted: '#958fa0', border: '#35313e' } },
+  sunset: { label: 'Gün batımı', colors: { bg: '#221b33', surface: '#2d2443', accent: '#7c6cf0', text: '#f0ecff', muted: '#a399c4', border: '#3d3359' } },
+  purple: { label: 'Mor', colors: { bg: '#18121f', surface: '#22192c', accent: '#a855f7', text: '#f0e9fa', muted: '#9d8fae', border: '#33263f' } },
+  forest: { label: 'Orman', colors: { bg: '#0e1712', surface: '#14211a', accent: '#22c55e', text: '#e6f2ea', muted: '#86a090', border: '#213428' } },
+  crimson: { label: 'Kızıl', colors: { bg: '#180e10', surface: '#231416', accent: '#ef4444', text: '#f5e8e9', muted: '#a88d90', border: '#3a2226' } },
+  cyan: { label: 'Camgöbeği', colors: { bg: '#0c171a', surface: '#112126', accent: '#06b6d4', text: '#e4f4f7', muted: '#83a3aa', border: '#1d343a' } },
+  gold: { label: 'Altın', colors: { bg: '#17140b', surface: '#221d10', accent: '#eab308', text: '#f5efdc', muted: '#a89c7c', border: '#382f19' } },
+  orange: { label: 'Turuncu', colors: { bg: '#18110b', surface: '#241910', accent: '#f97316', text: '#f7ece2', muted: '#a8907c', border: '#3a2819' } },
+  pink: { label: 'Pembe', colors: { bg: '#190e15', surface: '#24141e', accent: '#ec4899', text: '#f7e6f0', muted: '#a88b9b', border: '#3a2231' } },
+  mint: { label: 'Nane', colors: { bg: '#0d1714', surface: '#13221d', accent: '#34d399', text: '#e3f5ee', muted: '#82a598', border: '#1f362e' } },
+  lavender: { label: 'Lavanta', colors: { bg: '#16141d', surface: '#1f1c29', accent: '#a78bfa', text: '#eeeaf8', muted: '#9a93b0', border: '#302b40' } },
+  light: { label: 'Açık', colors: { bg: '#f4f4f6', surface: '#ffffff', accent: '#5865f2', text: '#18181b', muted: '#6b6b73', border: '#e2e2e6' } }
 }
 
 export interface ThemeSetting {

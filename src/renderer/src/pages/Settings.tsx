@@ -1,270 +1,153 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  Droplet,
+  Info,
+  Keyboard,
+  LayoutGrid,
+  Plug,
+  Radio,
+  Search,
+  SlidersHorizontal,
+  Star,
+  UserCog,
+  Users,
+  Wallet,
+  type LucideIcon
+} from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { errText, useEngine } from '../lib/engine'
-import { APP_VERSION, desktop } from '../lib/platform'
-import type { EngineHostStatus, WalletInfo } from '../../../shared/types'
-import type { GmgnPlan } from '../../../shared/engine'
+import { useNav, type Section } from '../lib/nav'
 import { AccountsSection } from './settings/Accounts'
 import { KeywordsSection } from './settings/Keywords'
 import { AppearanceSection } from './settings/Appearance'
-import { PresetsSection } from './settings/Presets'
 import { ShortcutsSection } from './settings/Shortcuts'
 import { DeploySettingsSection } from './settings/DeploySettings'
 import { WalletsSection } from './settings/Wallets'
+import { ConnectionsSection } from './settings/Connections'
+import { AboutSection } from './settings/About'
+import { SourcesPage } from './Sources'
+import { RulesPage } from './Rules'
+import { UsersPage } from './Users'
 
-type Msg = { kind: 'ok' | 'error'; text: string } | null
+type Item = { id: Section; label: string; icon: LucideIcon; founder?: boolean }
 
-type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'deploy' | 'wallets' | 'shortcuts' | 'about'
-
-const MENU: { group: string; items: { id: Section; label: string }[] }[] = [
-  { group: 'Takip', items: [{ id: 'accounts', label: 'Hesaplar' }, { id: 'keywords', label: 'Anahtar kelimeler' }, { id: 'appearance', label: 'Görünüm' }] },
-  { group: 'İşlem', items: [{ id: 'presets', label: "Ücret preset'leri" }, { id: 'connections', label: 'GMGN ve motor' }] },
-  { group: 'Deploy', items: [{ id: 'deploy', label: 'Genel' }, { id: 'wallets', label: 'Cüzdanlar' }] },
-  { group: 'Uygulama', items: [{ id: 'shortcuts', label: 'Kısayollar' }, { id: 'about', label: 'Hakkında' }] }
+const MENU: { group: string; items: Item[] }[] = [
+  {
+    group: 'Takip',
+    items: [
+      { id: 'accounts', label: 'Hesaplar', icon: Users },
+      { id: 'sources', label: 'Kaynaklar', icon: Radio },
+      { id: 'appearance', label: 'Görünüm', icon: Droplet },
+      { id: 'keywords', label: 'Anahtar kelimeler', icon: Star }
+    ]
+  },
+  {
+    group: 'İşlem',
+    items: [
+      { id: 'rules', label: 'Kurallar', icon: SlidersHorizontal },
+      { id: 'connections', label: 'GMGN ve motor', icon: Plug }
+    ]
+  },
+  {
+    group: 'Deploy',
+    items: [
+      { id: 'deploy', label: 'Genel', icon: LayoutGrid },
+      { id: 'wallets', label: 'Cüzdanlar', icon: Wallet }
+    ]
+  },
+  {
+    group: 'Uygulama',
+    items: [
+      { id: 'shortcuts', label: 'Kısayollar', icon: Keyboard },
+      { id: 'users', label: 'Kullanıcılar', icon: UserCog, founder: true },
+      { id: 'about', label: 'Hakkında', icon: Info }
+    ]
+  }
 ]
 
-export function SettingsPage({ initial }: { initial?: Section }) {
-  const [section, setSection] = useState<Section>(initial ?? 'connections')
+export function SettingsPage() {
+  const { section, go } = useNav()
+  const { profile } = useAuth()
+  const [q, setQ] = useState('')
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('memebot.settingsNav') === 'collapsed'
+    } catch {
+      return false
+    }
+  })
+  const collapse = (v: boolean) => {
+    setCollapsed(v)
+    try {
+      localStorage.setItem('memebot.settingsNav', v ? 'collapsed' : 'open')
+    } catch {
+      /* depolama kapalı olabilir */
+    }
+  }
+  const founder = profile?.role === 'founder'
+  const ql = q.trim().toLocaleLowerCase('tr')
+  const groups = MENU.map((g) => ({ ...g, items: g.items.filter((i) => (!i.founder || founder) && (!ql || i.label.toLocaleLowerCase('tr').includes(ql))) })).filter(
+    (g) => g.items.length
+  )
+  const group = MENU.find((g) => g.items.some((i) => i.id === section)) ?? MENU[0]
+  const item = group.items.find((i) => i.id === section) ?? group.items[0]
+  const open = (id: Section) => go('settings', id)
+
   return (
-    <div className="settings">
+    <div className={`settings${collapsed ? ' collapsed' : ''}`}>
       <nav className="settings-nav">
-        {MENU.map((g) => (
-          <div key={g.group} className="stack" style={{ gap: 2 }}>
+        <div className="settings-nav-head">
+          Ayarlar
+          <button className="icon-btn sm" title="Menüyü daralt" onClick={() => collapse(true)}>
+            <PanelLeftClose size={14} />
+          </button>
+        </div>
+        <label className="search">
+          <Search size={13} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ayarlarda ara" />
+        </label>
+        {groups.map((g) => (
+          <div key={g.group} style={{ display: 'grid', gap: 1 }}>
             <div className="settings-group">{g.group}</div>
             {g.items.map((i) => (
-              <button key={i.id} className="nav-item" aria-current={section === i.id ? 'page' : undefined} onClick={() => setSection(i.id)}>
+              <button key={i.id} className="nav-item" aria-current={section === i.id ? 'page' : undefined} onClick={() => open(i.id)}>
+                <i.icon size={14} />
                 {i.label}
               </button>
             ))}
           </div>
         ))}
       </nav>
-      <div className="settings-body">
-        {section === 'accounts' && <AccountsSection />}
-        {section === 'keywords' && <KeywordsSection />}
-        {section === 'appearance' && <AppearanceSection />}
-        {section === 'presets' && <PresetsSection />}
-        {section === 'connections' && <ConnectionsSection />}
-        {section === 'deploy' && <DeploySettingsSection />}
-        {section === 'wallets' && <WalletsSection />}
-        {section === 'shortcuts' && <ShortcutsSection />}
-        {section === 'about' && <AboutSection />}
+      <div className="settings-main">
+        <div className="page-head">
+          {collapsed && (
+            <button className="icon-btn" title="Menüyü aç" onClick={() => collapse(false)}>
+              <PanelLeftOpen size={15} />
+            </button>
+          )}
+          <span className="page-head-icon">
+            <item.icon size={16} />
+          </span>
+          <div>
+            <h1>{item.label}</h1>
+            <div className="page-head-sub">{group.group} ayarları</div>
+          </div>
+        </div>
+        <div className="settings-body">
+          {section === 'accounts' && <AccountsSection />}
+          {section === 'sources' && <SourcesPage />}
+          {section === 'appearance' && <AppearanceSection />}
+          {section === 'keywords' && <KeywordsSection />}
+          {section === 'rules' && <RulesPage />}
+          {section === 'connections' && <ConnectionsSection />}
+          {section === 'deploy' && <DeploySettingsSection />}
+          {section === 'wallets' && <WalletsSection />}
+          {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'users' && founder && <UsersPage />}
+          {section === 'about' && <AboutSection />}
+        </div>
       </div>
-    </div>
-  )
-}
-
-function ConnectionsSection() {
-  const { profile } = useAuth()
-  return (
-    <div className="stack">
-      <EngineCard />
-      <GmgnCard />
-      <WalletsSection />
-      {desktop && profile?.role === 'founder' && <EngineHostCard />}
-    </div>
-  )
-}
-
-function AboutSection() {
-  return (
-    <div className="card stack">
-      <h2>Uygulama</h2>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted">
-          Sürüm <span className="mono">{APP_VERSION}</span> · {desktop ? 'masaüstü' : 'web'}
-        </span>
-        {desktop && (
-          <button className="btn btn-sm" onClick={() => desktop?.updater.check()}>
-            Güncellemeleri denetle
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function EngineCard() {
-  const { online, status } = useEngine()
-  return (
-    <div className="card stack">
-      <h2>Motor</h2>
-      <div className="row">
-        <span className={`dot ${online ? 'on' : 'off'}`} />
-        <span>{online ? 'Çalışıyor' : 'Çalışmıyor'}</span>
-        {status?.version && <span className="faint">· sürüm {status.version}</span>}
-        {status?.host && <span className="faint">· {status.host}</span>}
-        {online && status?.gmgn_latency_ms != null && <span className="faint">· GMGN {status.gmgn_latency_ms} ms</span>}
-      </div>
-      <p className="muted">
-        Sinyalleri dinleyen, güvenlik kontrolü yapan ve alım-satımı yürüten motor 7/24 tek bir yerde çalışır. Bu ekran (tarayıcı ya da
-        masaüstü) sadece arayüzdür; kapatsanız da motor çalışmaya devam eder.
-      </p>
-    </div>
-  )
-}
-
-function GmgnCard() {
-  const { me, online, run, runSealed } = useEngine()
-  const [apiKey, setApiKey] = useState('')
-  const [pem, setPem] = useState('')
-  const [msg, setMsg] = useState<Msg>(null)
-  const [busy, setBusy] = useState(false)
-  const configured = me?.gmgn.configured === true
-  const plan = me?.gmgn.plan ?? 'free'
-
-  const act = async (fn: () => Promise<unknown>, ok: string) => {
-    setBusy(true)
-    setMsg(null)
-    try {
-      await fn()
-      setMsg({ kind: 'ok', text: ok })
-      return true
-    } catch (e) {
-      setMsg({ kind: 'error', text: errText(e) })
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const save = async () => {
-    if (await act(() => runSealed('gmgn.save', { apiKey, privateKeyPem: pem }), 'Anahtar motora şifreli olarak kaydedildi.')) {
-      setApiKey('')
-      setPem('')
-    }
-  }
-
-  return (
-    <div className="card stack">
-      <h2>GMGN API</h2>
-      <p className="muted">
-        Anahtarınızı <span className="mono">gmgn.ai/ai</span> adresinden alın. Anahtar bu ekranda motorun açık anahtarıyla şifrelenir; Supabase'e
-        düz metin gitmez, sadece motor açabilir ve kendi kasasında şifreli saklar.
-      </p>
-      <div className="row">
-        <span className={`dot ${configured ? 'on' : 'off'}`} />
-        <span>{me ? (configured ? 'Anahtar kayıtlı' : 'Anahtar yok') : '…'}</span>
-      </div>
-      {configured && (
-        <label style={{ maxWidth: 320 }}>
-          GMGN planı (istek hızı sınırı)
-          <select
-            value={plan}
-            disabled={busy || !online}
-            onChange={(e) => act(() => run('gmgn.plan', { plan: e.target.value as GmgnPlan }), 'Plan güncellendi.')}
-          >
-            <option value="free">Free — 5 istek/sn</option>
-            <option value="plus">Plus — 20 istek/sn</option>
-            <option value="pro">Pro — 50 istek/sn</option>
-          </select>
-        </label>
-      )}
-      {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
-      <label>
-        API Key
-        <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} />
-      </label>
-      <label>
-        İmza anahtarı (Ed25519 PEM — cüzdan anahtarı DEĞİL)
-        <textarea
-          rows={4}
-          value={pem}
-          onChange={(e) => setPem(e.target.value)}
-          spellCheck={false}
-          placeholder={'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
-        />
-      </label>
-      <div className="row">
-        <button className="btn btn-primary" disabled={busy || !online || !apiKey || !pem} onClick={save}>
-          Kaydet
-        </button>
-        <button className="btn" disabled={busy || !online || !configured} onClick={() => act(() => run('gmgn.test', {}), 'GMGN bağlantısı çalışıyor.')}>
-          Bağlantıyı test et
-        </button>
-        <button
-          className="btn btn-danger"
-          disabled={busy || !online || !configured}
-          onClick={() => confirm('GMGN anahtarı motordan silinsin mi?') && act(() => run('gmgn.clear', {}), 'Anahtar silindi.')}
-        >
-          Anahtarı sil
-        </button>
-      </div>
-      {!online && <p className="faint">Motor çalışmadığı için anahtar işlemleri şu an yapılamaz.</p>}
-    </div>
-  )
-}
-
-// Masaüstü + founder: motoru bu bilgisayarda çalıştırma ayarı (VPS'e geçene kadar)
-function EngineHostCard() {
-  const [st, setSt] = useState<EngineHostStatus | null>(null)
-  const [key, setKey] = useState('')
-  const [msg, setMsg] = useState<Msg>(null)
-  const [showLogs, setShowLogs] = useState(false)
-
-  useEffect(() => {
-    const load = () => desktop?.engine.status().then(setSt)
-    load()
-    const t = setInterval(load, 3_000)
-    return () => clearInterval(t)
-  }, [])
-
-  const configure = async (patch: { enabled?: boolean; serviceRoleKey?: string }, ok: string) => {
-    const r = await desktop!.engine.configure(patch)
-    if (r.ok) {
-      setSt(r.status)
-      setMsg({ kind: 'ok', text: ok })
-      setKey('')
-    } else setMsg({ kind: 'error', text: r.error })
-  }
-
-  if (!st) return null
-  return (
-    <div className="card stack">
-      <h2>Bu bilgisayarda motor</h2>
-      <p className="muted">
-        Proje VPS'e taşınana kadar motor bu bilgisayarda, uygulama açıkken arka planda çalışır. Bunun için Supabase{' '}
-        <b>service_role</b> anahtarı gerekir (Supabase → Project Settings → API Keys). Anahtar sadece bu bilgisayarda Windows şifrelemesiyle
-        saklanır; başka hiçbir yere gönderilmez.
-      </p>
-      <div className="row">
-        <span className={`dot ${st.running ? 'on' : 'off'}`} />
-        <span>{st.running ? 'Bu bilgisayarda çalışıyor' : st.enabled ? 'Açık ama çalışmıyor' : 'Kapalı'}</span>
-        <span className="faint">· service_role anahtarı {st.hasServiceKey ? 'kayıtlı' : 'yok'}</span>
-      </div>
-      {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
-      <div className="row">
-        <input
-          type="password"
-          style={{ flex: 1 }}
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder={st.hasServiceKey ? 'Yeni service_role anahtarı (değiştirmek için)' : 'service_role anahtarı'}
-          autoComplete="off"
-        />
-        <button className="btn" disabled={!key.trim()} onClick={() => configure({ serviceRoleKey: key }, 'Anahtar kaydedildi.')}>
-          Kaydet
-        </button>
-      </div>
-      <label className="row" style={{ color: 'var(--text)', fontSize: 13 }}>
-        <input
-          type="checkbox"
-          checked={st.enabled}
-          disabled={!st.hasServiceKey}
-          onChange={(e) =>
-            configure({ enabled: e.target.checked }, e.target.checked ? 'Motor başlatılıyor…' : 'Motor bu bilgisayarda durduruldu.')
-          }
-        />
-        Motor bu bilgisayarda çalışsın
-      </label>
-      <div>
-        <button className="btn btn-sm" onClick={() => setShowLogs((v) => !v)}>
-          {showLogs ? 'Günlüğü gizle' : 'Motor günlüğünü göster'}
-        </button>
-      </div>
-      {showLogs && (
-        <pre className="log">{st.logs.length ? st.logs.join('\n') : 'Henüz kayıt yok.'}</pre>
-      )}
     </div>
   )
 }

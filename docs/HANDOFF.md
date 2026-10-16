@@ -20,7 +20,7 @@ Sırayla oku: bu dosya → `docs/V2-PLAN.md` (fazlar, kararlar) → `docs/KURULU
 ## 1. Kullanıcı ve çalışma tarzı
 
 - Türkçe; teknik değil ama hızlı karar verir. Net, adım adım, kısa.
-- **Sade tasarım:** tek tonlu koyu tema; renk sadece anlam (yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı).
+- **Tasarım (J7 tarzı):** kompakt koyu tema; ortalanmış üst menü, alt durum çubuğu (Ücret popover'ı orada), ikonlu sol menülü Ayarlar. Vurgu rengi (varsayılan indigo) sadece seçili öğe/birincil buton için; anlam renkleri sabit (yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı). İkonlar `lucide-react`.
 - Roller: founder (kullanıcı), developer, assistant. Açık kayıt kapalı.
 - **Migration'ları kullanıcı SQL Editor'dan çalıştırır**; "çalıştırdım" dedikten sonra yayın.
 - Push / release / public işlemler her seferinde açık onayla.

@@ -23,26 +23,29 @@ export function ShortcutsSection() {
   }
 
   return (
-    <div className="card stack">
-      <h2>Kısayollar</h2>
-      <p className="muted">Yazı alanlarındayken kısayollar çalışmaz (F tuşları hariç).</p>
+    <div className="stack">
+      <p className="faint" style={{ fontSize: 12 }}>
+        Satıra tıklayıp yeni tuş kombinasyonuna basın (Esc iptal). Yazı alanlarındayken kısayollar çalışmaz (F tuşları hariç).
+      </p>
       {error && <div className="notice error">{error}</div>}
-      <table>
-        <tbody>
-          {(Object.keys(KEY_ACTIONS) as KeyAction[]).map((a) => (
-            <tr key={a}>
-              <td>{KEY_ACTIONS[a]}</td>
-              <td style={{ textAlign: 'right' }}>
-                <button className={`btn btn-sm mono ${editing === a ? 'btn-primary' : ''}`} onClick={() => setEditing(a)} onKeyDown={capture} onBlur={() => setEditing(null)}>
-                  {editing === a ? 'Tuşa basın…' : keybinds[a]}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
       <div>
-        <button className="btn btn-sm" onClick={() => setKeybinds(DEFAULT_KEYBINDS)}>
+        {(Object.keys(KEY_ACTIONS) as KeyAction[]).map((a) => (
+          <div key={a} className="setting-row">
+            <span className="setting-row-title">{KEY_ACTIONS[a]}</span>
+            <button
+              className={`btn btn-sm mono ${editing === a ? 'btn-primary' : ''}`}
+              style={{ minWidth: 110 }}
+              onClick={() => setEditing(a)}
+              onKeyDown={capture}
+              onBlur={() => setEditing(null)}
+            >
+              {editing === a ? 'Tuşa basın…' : keybinds[a]}
+            </button>
+          </div>
+        ))}
+      </div>
+      <div>
+        <button className="btn btn-sm btn-ghost" onClick={() => setKeybinds(DEFAULT_KEYBINDS)}>
           Varsayılanlara dön
         </button>
       </div>
