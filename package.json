@@ -1,7 +1,7 @@
 {
   "name": "memebot",
   "productName": "MemeBot",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Telegram ve X sinyallerinden GMGN üzerinden meme coin alım-satımı yapan uygulama (masaüstü + web + motor)",
   "main": "./out/main/index.js",
   "author": "FakeLord",
