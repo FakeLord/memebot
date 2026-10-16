@@ -8,6 +8,7 @@ import { Tracker } from './tracker'
 import { SourceHub } from './sources'
 import { Commands } from './commands'
 import { FeedWriter } from './feed'
+import { DeployEngine } from './deploy'
 import { lastLatencyMs } from './gmgn/client'
 import type { RuleRow } from '../shared/rules'
 import type { XPollResult } from '../shared/types'
@@ -31,6 +32,7 @@ export class Engine {
   readonly sources: SourceHub
   readonly commands: Commands
   readonly feed: FeedWriter
+  readonly deploy: DeployEngine
   readonly instanceId: string
   private active = false
   private stopped = false
@@ -46,7 +48,8 @@ export class Engine {
     this.tracker = new Tracker(this.ctx)
     this.feed = new FeedWriter(this.ctx, (id) => this.ctx.users.keywords(id))
     this.sources = new SourceHub(this.ctx, this.feed, o.xPoll)
-    this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, xPoll: o.xPoll })
+    this.deploy = new DeployEngine(this.ctx)
+    this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, deploy: this.deploy, xPoll: o.xPoll })
   }
 
   get isActive(): boolean {
@@ -95,6 +98,7 @@ export class Engine {
       this.ctx.state.patch(id, { gmgn: { configured: !!g, plan: g?.plan ?? 'free', wallet: g?.wallet ?? null } })
     }
     await this.orders.recover()
+    await this.deploy.recover()
     await this.sources.start()
     this.subscribe()
 

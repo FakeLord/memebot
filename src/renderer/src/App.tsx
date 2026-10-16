@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PrefsProvider, usePrefs } from './lib/prefs'
+import { DeployProvider } from './components/DeployPanel'
 import { keyCombo, type KeyAction } from '../../shared/settings'
 import { AuthProvider, useAuth } from './lib/auth'
 import { supabase, supabaseConfigured } from './lib/supabase'
@@ -92,6 +93,7 @@ function Gate() {
         <PipelineProvider>
           <PrefsProvider>
           <OrdersProvider>
+          <DeployProvider>
             <Shortcuts onNavigate={(p) => setPage(p)} />
             <Layout
               page={page}
@@ -110,6 +112,7 @@ function Gate() {
               {page === 'settings' && <SettingsPage />}
               {page === 'users' && profile.role === 'founder' && <UsersPage />}
             </Layout>
+          </DeployProvider>
           </OrdersProvider>
           </PrefsProvider>
         </PipelineProvider>

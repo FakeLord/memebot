@@ -2,6 +2,8 @@ import type { EngineContext } from './context'
 import type { OrderEngine } from './orders'
 import type { Pipeline } from './pipeline'
 import type { SourceHub } from './sources'
+import type { DeployEngine } from './deploy'
+import type { DeployForm } from '../shared/deploy'
 import { assertSigningKey } from './gmgn/signer'
 import { extractWallets } from './gmgn/trade'
 import { pollMonitors } from './xflux/client'
@@ -23,7 +25,7 @@ interface CommandRow {
 }
 
 const STALE_MS = 2 * 60_000 // motor kapalıyken birikmiş eski komutlar çalıştırılmaz
-const TRADER_ONLY = new Set<string>(['positions.sell_all'])
+const TRADER_ONLY = new Set<string>(['positions.sell_all', 'deploy.submit'])
 
 export class CommandError extends Error {}
 
@@ -35,7 +37,13 @@ export class Commands {
 
   constructor(
     private readonly ctx: EngineContext,
-    deps: { orders: OrderEngine; pipeline: Pipeline; sources: SourceHub; xPoll?: (apiKey: string, hitLimit?: number) => Promise<XPollResult> }
+    deps: {
+      orders: OrderEngine
+      pipeline: Pipeline
+      sources: SourceHub
+      deploy: DeployEngine
+      xPoll?: (apiKey: string, hitLimit?: number) => Promise<XPollResult>
+    }
   ) {
     const { vault, state } = ctx
     const xPoll = deps.xPoll ?? pollMonitors
@@ -156,7 +164,11 @@ export class Commands {
           throw new CommandError((e as Error).message)
         }
       },
-      'positions.sell_all': async (userId) => deps.orders.sellAll(userId)
+      'positions.sell_all': async (userId) => deps.orders.sellAll(userId),
+      'deploy.submit': async (userId, p) => {
+        if (!p.form || typeof p.form !== 'object') throw new CommandError('Form eksik')
+        return deps.deploy.submit(userId, p.form as DeployForm, String(p.key ?? ''))
+      }
     }
   }
 
@@ -201,7 +213,7 @@ export class Commands {
         db.from('engine_commands').update({ ...patch, finished_at: new Date().toISOString() }).eq('id', c.id)
 
       const handler = this.handlers[c.kind as CommandKind]
-      if (!handler) return void (await finish({ status: 'failed', error: 'Bilinmeyen komut' }))
+      if (!handler) return void (await finish({ status: 'failed', error: 'Motor bu komutu tanımıyor — motor eski sürüm olabilir, güncelleyin' }))
       if (Date.now() - new Date(c.created_at).getTime() > STALE_MS) {
         return void (await finish({ status: 'failed', error: 'Komut zamanında işlenemedi (motor kapalıydı)' }))
       }

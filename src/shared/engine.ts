@@ -4,6 +4,7 @@
 import type { SafetyReport, TokenSummary } from './safety'
 import type { Sealed } from './seal'
 import type { TelegramChat, TelegramStatus, WalletInfo } from './types'
+import type { DeployForm } from './deploy'
 
 export type GmgnPlan = 'free' | 'plus' | 'pro'
 
@@ -24,6 +25,7 @@ export interface EngineCommands {
   'telegram.logout': [Record<string, never>, { ok: true }]
   'telegram.chats': [Record<string, never>, { chats: TelegramChat[] }]
   'positions.sell_all': [Record<string, never>, { orders: number; errors: string[] }]
+  'deploy.submit': [{ form: DeployForm; key: string }, { id: string; status: string; dryRun: boolean; request: Record<string, unknown> }]
 }
 
 export type CommandKind = keyof EngineCommands

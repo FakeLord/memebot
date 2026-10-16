@@ -63,7 +63,13 @@ d('MemeBot Engine (yerel Supabase)', () => {
   }
 
   beforeAll(async () => {
-    // Önceki test motorlarının kilidini bırak
+    // Yerelde açık kalmış başka bir motor (ör. scripts/dev-engine) varsa: kilidi tutup bekleme moduna
+    // geçmesini bekle (motor 10 sn'de bir kilidi yeniler), sonra bırak
+    const { data: other } = await admin.from('engine_status').select('heartbeat_at').eq('id', 'main').maybeSingle()
+    if (other && Date.now() - new Date(other.heartbeat_at).getTime() < 30_000) {
+      await admin.from('engine_status').update({ instance_id: 'test-kilidi', heartbeat_at: new Date().toISOString() }).eq('id', 'main')
+      await new Promise((r) => setTimeout(r, 11_000))
+    }
     await admin.from('engine_status').delete().eq('id', 'main')
     founder = await makeUser(e, 'founder', tag)
     dev = await makeUser(e, 'developer', tag)
@@ -345,6 +351,52 @@ d('MemeBot Engine (yerel Supabase)', () => {
     const id = await engine.feed.ingest(dev.id, null, { platform: 'x', externalId: `kw-${tag}`, author: {}, body: 'bugün kedi günü' })
     const card = await waitFor(async () => (await dev.client.from('feed_items').select('suggestions').eq('id', id!).single()).data?.suggestions?.length ? true : null)
     expect(card).toBe(true)
+  })
+
+  it("deploy: deneme modunda GMGN'e gönderilmez, kaydedilir; aynı form iki kez gönderilemez", async () => {
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 })
+    const form = {
+      platform: 'pump' as const,
+      name: 'Test Köpek',
+      symbol: 'TKOPEK',
+      image: { kind: 'url' as const, url: 'https://pbs.twimg.com/a.jpg' },
+      twitter: 'https://x.com/a/status/1',
+      buySol: 0.1,
+      feeShares: [{ provider: 'twitter' as const, username: '@a', percent: 100 }],
+      autoSell: [{ type: 'delay' as const, seconds: 60, percent: 50 }],
+      preset: 1 as const
+    }
+    const before = gmgn.calls.filter((c) => c.fn === 'createToken').length
+    const r = await runCommand(dev.client, dev.id, 'deploy.submit', { form, key: `k-${tag}-1` })
+    expect(r.dryRun).toBe(true)
+    expect(r.status).toBe('simulated')
+    expect(r.request.dex).toBe('pump')
+    expect(r.request.buy_amt).toBe('0.1')
+    expect(r.request.pump_fee_share_list).toEqual([{ provider: 'twitter', username: 'a', basic_points: 10000 }])
+    expect((r.request.sell_configs as { sell_ratio: string }[])[0].sell_ratio).toBe('0.5')
+    expect(gmgn.calls.filter((c) => c.fn === 'createToken').length).toBe(before)
+    await expect(runCommand(dev.client, dev.id, 'deploy.submit', { form, key: `k-${tag}-1` })).rejects.toThrow(/zaten gönderildi/)
+    await expect(runCommand(dev.client, dev.id, 'deploy.submit', { form: { ...form, symbol: '' }, key: `k-${tag}-2` })).rejects.toThrow(/Sembol/)
+    await expect(runCommand(asst.client, asst.id, 'deploy.submit', { form, key: `k-${tag}-3` })).rejects.toThrow(/yapamaz/)
+    const { data: rows } = await dev.client.from('deploys').select('status, is_dry_run').eq('user_id', dev.id)
+    expect(rows).toEqual([{ status: 'simulated', is_dry_run: true }])
+  })
+
+  it("deploy: gerçek modda GMGN'e gider, token adresi emir sorgusundan gelir (sahte GMGN)", async () => {
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: true, maxOpenPositions: 50 })
+    gmgn.createdMint = mint()
+    const form = { platform: 'bonk' as const, name: 'Gerçek', symbol: 'GRC', image: { kind: 'base64' as const, data: 'aGVsbG8=', bytes: 5 }, buySol: 0, feeShares: [], autoSell: [], preset: 2 as const }
+    const r = await runCommand(dev.client, dev.id, 'deploy.submit', { form, key: `k-${tag}-live` })
+    expect(r.dryRun).toBe(false)
+    const d = await waitFor(async () => {
+      const { data } = await dev.client.from('deploys').select('*').eq('id', r.id).single()
+      return data?.status === 'confirmed' ? data : null
+    })
+    expect(d.mint).toBe(gmgn.createdMint)
+    const sent = gmgn.calls.filter((c) => c.fn === 'createToken').at(-1)!.args as Record<string, unknown>
+    expect(sent.image).toBe('aGVsbG8=')
+    expect(d.request.image).toMatch(/^<base64/) // veritabanına görselin kendisi yazılmaz
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 })
   })
 
   it('tümünü sat: açık tüm pozisyonlar satılır', async () => {

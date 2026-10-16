@@ -9,14 +9,16 @@ import { KeywordsSection } from './settings/Keywords'
 import { AppearanceSection } from './settings/Appearance'
 import { PresetsSection } from './settings/Presets'
 import { ShortcutsSection } from './settings/Shortcuts'
+import { DeploySettingsSection } from './settings/DeploySettings'
 
 type Msg = { kind: 'ok' | 'error'; text: string } | null
 
-type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'shortcuts' | 'about'
+type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'deploy' | 'shortcuts' | 'about'
 
 const MENU: { group: string; items: { id: Section; label: string }[] }[] = [
   { group: 'Takip', items: [{ id: 'accounts', label: 'Hesaplar' }, { id: 'keywords', label: 'Anahtar kelimeler' }, { id: 'appearance', label: 'Görünüm' }] },
   { group: 'İşlem', items: [{ id: 'presets', label: "Ücret preset'leri" }, { id: 'connections', label: 'GMGN ve motor' }] },
+  { group: 'Deploy', items: [{ id: 'deploy', label: 'Genel' }] },
   { group: 'Uygulama', items: [{ id: 'shortcuts', label: 'Kısayollar' }, { id: 'about', label: 'Hakkında' }] }
 ]
 
@@ -42,6 +44,7 @@ export function SettingsPage({ initial }: { initial?: Section }) {
         {section === 'appearance' && <AppearanceSection />}
         {section === 'presets' && <PresetsSection />}
         {section === 'connections' && <ConnectionsSection />}
+        {section === 'deploy' && <DeploySettingsSection />}
         {section === 'shortcuts' && <ShortcutsSection />}
         {section === 'about' && <AboutSection />}
       </div>

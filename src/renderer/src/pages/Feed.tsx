@@ -6,6 +6,7 @@ import { usePipeline } from '../lib/pipeline'
 import { useOrders } from '../lib/orders'
 import { useKillSwitch } from '../lib/killswitch'
 import { usePrefs } from '../lib/prefs'
+import { useDeploy } from '../components/DeployPanel'
 import { FeedCard, type CardActions } from '../components/FeedCard'
 import { SignalsPanel } from './Signals'
 import { useSources } from './Sources'
@@ -16,9 +17,12 @@ import type { TelegramStatus } from '../../../shared/types'
 
 const PAGE = 60
 
-export function FeedPage({ onCheck, onDeploy }: { onCheck: (mint: string) => void; onDeploy?: (item: FeedItem) => void }) {
+export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const [tab, setTab] = useState<'feed' | 'signals'>('feed')
   const { keywords } = usePrefs()
+  const { open } = useDeploy()
+  const { profile } = useAuth()
+  const onDeploy = canTrade(profile?.role) ? open : undefined
   return (
     <div className="stack">
       <div className="tabs">
@@ -62,7 +66,7 @@ function FeedList({
   keywords
 }: {
   onCheck: (mint: string) => void
-  onDeploy?: (item: FeedItem) => void
+  onDeploy?: CardActions['onDeploy']
   keywords: (KeywordRule & { color?: string | null })[]
 }) {
   const { profile } = useAuth()
@@ -70,6 +74,7 @@ function FeedList({
   const { buy } = useOrders()
   const { online } = useEngine()
   const killSwitch = useKillSwitch()
+  const { open: openDeploy } = useDeploy()
   const [items, setItems] = useState<FeedItem[]>([])
   const [loaded, setLoaded] = useState(false)
   const [limit, setLimit] = useState(PAGE)
@@ -156,6 +161,11 @@ function FeedList({
       <div className="feed-toolbar">
         <SourceChips />
         <div className="row" style={{ gap: 6 }}>
+          {onDeploy && (
+            <button className="btn btn-sm" title="Boş deploy formu" onClick={() => openDeploy()}>
+              ⚡ Deploy
+            </button>
+          )}
           <input className="input-sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Akışta ara" style={{ width: 180 }} />
           <select className="input-sm" value={platform} onChange={(e) => setPlatform(e.target.value as typeof platform)}>
             <option value="all">Tümü</option>

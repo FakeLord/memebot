@@ -52,7 +52,7 @@ function send(method: Method, path: string, query: Query, headers: Record<string
 // Motorun kullandığı GMGN yüzeyi; testlerde sahte istemci verilir.
 export type GmgnApi = Pick<
   GmgnClient,
-  'userInfo' | 'tokenInfo' | 'tokenSecurity' | 'tokenPrice' | 'quote' | 'swap' | 'queryOrder' | 'walletHoldings' | 'marketSearch'
+  'userInfo' | 'tokenInfo' | 'tokenSecurity' | 'tokenPrice' | 'quote' | 'swap' | 'queryOrder' | 'walletHoldings' | 'marketSearch' | 'createToken'
 >
 
 export class GmgnClient {
@@ -145,6 +145,10 @@ export class GmgnClient {
   }
   swap(params: SwapParams) {
     return this.call('POST', '/v1/trade/swap', {}, params, true, 10, Priority.Trade, 0)
+  }
+  // Token çıkarma (pump / bonk / bags). Asenkron: sonuç ve token adresi query_order'dan (report.output_token)
+  createToken(params: Record<string, unknown>) {
+    return this.call('POST', '/v1/cooking/create_token', {}, params, true, 5, Priority.Trade, 0)
   }
   queryOrder(orderId: string, chain = 'sol') {
     return this.call('GET', '/v1/trade/query_order', { order_id: orderId, chain }, null, true, 5, Priority.Order)

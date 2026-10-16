@@ -12,7 +12,7 @@ export interface CardActions {
   buyLabel: string // "Al · 0.1" / "Dene · 0.1"
   canBuy: boolean
   onCheck: (mint: string) => void
-  onDeploy?: (item: FeedItem) => void
+  onDeploy?: (item: FeedItem, snapshot: () => Promise<string | null>) => void
 }
 
 function ago(iso: string | null, now: number): string {
@@ -118,10 +118,21 @@ export const FeedCard = memo(function FeedCard({
     setTimeout(() => setMsg((m) => (m?.endsWith('kopyalandı') ? null : m)), 1500)
   }
 
+  // Kartın PNG görüntüsü (deploy görseli ve "görsel olarak kaydet")
+  const snapshot = async (): Promise<string | null> => {
+    if (!ref.current) return null
+    try {
+      return await toPng(ref.current, { pixelRatio: 2, backgroundColor: getComputedStyle(document.body).backgroundColor })
+    } catch {
+      return null
+    }
+  }
+
   const saveImage = async () => {
     if (!ref.current) return
     try {
-      const url = await toPng(ref.current, { pixelRatio: 2, backgroundColor: getComputedStyle(document.body).backgroundColor })
+      const url = await snapshot()
+      if (!url) throw new Error()
       const link = document.createElement('a')
       link.download = `gonderi-${item.external_id.replace(/\W/g, '-')}.png`
       link.href = url
@@ -152,7 +163,7 @@ export const FeedCard = memo(function FeedCard({
         </div>
         <div className="row" style={{ gap: 4 }}>
           {actions.onDeploy && (
-            <button className="btn btn-xs" title="Bu gönderiden token çıkar" onClick={() => actions.onDeploy!(item)}>
+            <button className="btn btn-xs" title="Bu gönderiden token çıkar" onClick={() => actions.onDeploy!(item, snapshot)}>
               ⚡ Deploy
             </button>
           )}

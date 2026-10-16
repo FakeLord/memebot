@@ -139,8 +139,10 @@ export class FakeGmgn implements GmgnApi {
     this.calls.push({ fn: 'swap', args: p })
     return this.ok({ order_id: `ord-${this.calls.length}`, status: this.swapStatus, hash: 'TxHash111' })
   }
+  createdMint = ''
   async queryOrder(orderId: string) {
     this.calls.push({ fn: 'queryOrder', args: orderId })
+    if (orderId.startsWith('cook-')) return this.ok({ status: 'confirmed', hash: 'CookTx', report: { output_token: this.createdMint } })
     const st = this.queryResults.shift() ?? 'confirmed'
     return this.ok({
       status: st,
@@ -152,6 +154,12 @@ export class FakeGmgn implements GmgnApi {
   async marketSearch(q: string) {
     this.calls.push({ fn: 'marketSearch', args: q })
     return this.ok({ coins: this.searchResults.get(q.toLowerCase()) ?? [], wallets: [] })
+  }
+  createStatus: 'pending' | 'failed' = 'pending'
+  async createToken(p: unknown) {
+    this.calls.push({ fn: 'createToken', args: p })
+    if (this.createStatus === 'failed') return { ok: false as const, status: 400, error: 'reddedildi' }
+    return this.ok({ order_id: `cook-${this.calls.length}`, status: 'pending', hash: '' })
   }
   async walletHoldings() {
     return this.ok({ list: this.holdingsList, next: null })
