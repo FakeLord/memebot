@@ -19,7 +19,8 @@ const pem = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', fo
 
 d('MemeBot Engine (yerel Supabase)', () => {
   const e = env as LocalEnv
-  const admin = service(e)
+  // Atlanan (yerel Supabase yok) durumda da bu gövde çalışır: bağlantı beforeAll'da kurulur
+  let admin: SupabaseClient
   const gmgn = new FakeGmgn()
   let engine: Engine
   let founder: { id: string; client: SupabaseClient }
@@ -63,6 +64,7 @@ d('MemeBot Engine (yerel Supabase)', () => {
   }
 
   beforeAll(async () => {
+    admin = service(e)
     // Yerelde açık kalmış başka bir motor (ör. scripts/dev-engine) varsa: kilidi tutup bekleme moduna
     // geçmesini bekle (motor 10 sn'de bir kilidi yeniler), sonra bırak
     const { data: other } = await admin.from('engine_status').select('heartbeat_at').eq('id', 'main').maybeSingle()
