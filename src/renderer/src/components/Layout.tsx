@@ -3,10 +3,11 @@ import { ROLE_LABEL, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import type { UpdateStatus } from '../../../shared/types'
 
-export type Page = 'feed' | 'token' | 'positions' | 'settings' | 'users'
+export type Page = 'feed' | 'sources' | 'token' | 'positions' | 'settings' | 'users'
 
 const TITLES: Record<Page, string> = {
   feed: 'Canlı Akış',
+  sources: 'Kaynaklar',
   token: 'Token Kontrol',
   positions: 'Pozisyonlar',
   settings: 'Ayarlar',
@@ -47,7 +48,7 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
     }
   }
 
-  const items: Page[] = ['feed', 'token', 'positions', 'settings']
+  const items: Page[] = ['feed', 'sources', 'token', 'positions', 'settings']
   if (profile?.role === 'founder') items.push('users')
 
   return (

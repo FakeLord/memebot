@@ -58,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session?.user.id])
 
   const signOut = async () => {
+    // Telegram bağlantısını kapat (oturum bu bilgisayarda kayıtlı kalır)
+    await window.api.telegram.detach()
     await supabase.auth.signOut()
   }
 

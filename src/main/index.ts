@@ -4,6 +4,7 @@ import { GmgnClient } from './gmgn/client'
 import { assertSigningKey } from './gmgn/signer'
 import { clearGmgnCredentials, loadGmgnCredentials, saveGmgnCredentials } from './secrets'
 import { setupUpdater } from './updater'
+import { TelegramService } from './telegram/service'
 import { isLikelyMint } from '../shared/extract'
 import type { GmgnResult } from '../shared/types'
 
@@ -78,6 +79,30 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
     if (!isLikelyMint(mint)) return BAD_MINT
     return clientFor(userId)?.tokenSecurity(mint) ?? NO_KEY
   })
+
+  const telegram = new TelegramService({
+    status: (s) => win?.webContents.send('telegram:status', s),
+    message: (m) => win?.webContents.send('telegram:message', m)
+  })
+  app.on('before-quit', () => {
+    telegram.detach()
+  })
+  ipcMain.handle('telegram:attach', (_e, userId: string) => telegram.attach(userId))
+  ipcMain.handle('telegram:detach', () => telegram.detach())
+  ipcMain.handle('telegram:startLogin', (_e, apiId: number, apiHash: string, phone: string) =>
+    telegram.startLogin(Number(apiId), String(apiHash).trim(), String(phone))
+  )
+  ipcMain.handle('telegram:submitCode', (_e, code: string) => telegram.submitCode(String(code)))
+  ipcMain.handle('telegram:submitPassword', (_e, pw: string) => telegram.submitPassword(String(pw)))
+  ipcMain.handle('telegram:logout', () => telegram.logout())
+  ipcMain.handle('telegram:listChats', async () => {
+    try {
+      return { ok: true, chats: await telegram.listChats() }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
+  ipcMain.handle('telegram:setWatched', (_e, ids: string[]) => telegram.setWatched(Array.isArray(ids) ? ids.map(String) : []))
 
   ipcMain.handle('updater:check', () => updater.check())
   ipcMain.handle('updater:install', () => updater.install())

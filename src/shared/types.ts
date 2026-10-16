@@ -45,6 +45,29 @@ export type UpdateStatus =
   | { state: 'none' }
   | { state: 'error'; message: string }
 
+export type TelegramStatus =
+  | { state: 'needs_setup' }
+  | { state: 'connecting' }
+  | { state: 'code'; viaApp: boolean; error?: string }
+  | { state: 'password'; hint?: string; error?: string }
+  | { state: 'connected'; me: string }
+  | { state: 'disconnected'; reason?: string }
+
+export interface TelegramChat {
+  id: string
+  title: string
+  kind: 'channel' | 'group'
+}
+
+export interface TelegramMessage {
+  chatId: string
+  msgId: number
+  text: string
+  date: number // Unix saniye (Telegram zamanı)
+  receivedAt: number // Unix ms (bu bilgisayar)
+  edited: boolean
+}
+
 export interface MemeBotApi {
   appVersion(): Promise<string>
   gmgn: {
@@ -54,6 +77,18 @@ export interface MemeBotApi {
     userInfo(userId: string): Promise<GmgnResult>
     tokenInfo(userId: string, mint: string): Promise<GmgnResult>
     tokenSecurity(userId: string, mint: string): Promise<GmgnResult>
+  }
+  telegram: {
+    attach(userId: string): Promise<TelegramStatus>
+    detach(): Promise<void>
+    startLogin(apiId: number, apiHash: string, phone: string): Promise<void>
+    submitCode(code: string): Promise<void>
+    submitPassword(password: string): Promise<void>
+    logout(): Promise<void>
+    listChats(): Promise<{ ok: true; chats: TelegramChat[] } | { ok: false; error: string }>
+    setWatched(chatIds: string[]): Promise<void>
+    onStatus(cb: (s: TelegramStatus) => void): () => void
+    onMessage(cb: (m: TelegramMessage) => void): () => void
   }
   updater: {
     check(): Promise<void>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { extractMints } from '../../../shared/extract'
@@ -17,20 +17,26 @@ interface Checked {
 
 type Obj = Record<string, unknown>
 
-export function TokenCheckPage() {
+export function TokenCheckPage({ initial }: { initial?: string }) {
   const { profile } = useAuth()
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initial ?? '')
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<Checked[]>([])
 
   const mints = extractMints(text)
 
-  const run = async () => {
+  // Canlı Akış'tan "Kontrol" ile gelindiyse hemen çalıştır
+  useEffect(() => {
+    if (initial) run(extractMints(initial))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial])
+
+  const run = async (targets: string[] = mints) => {
     if (!profile) return
     setBusy(true)
     const out: Checked[] = []
     // Sırayla: GMGN rate limit'ine nazik davranır
-    for (const mint of mints.slice(0, 5)) {
+    for (const mint of targets.slice(0, 5)) {
       const [info, security] = await Promise.all([
         window.api.gmgn.tokenInfo(profile.id, mint),
         window.api.gmgn.tokenSecurity(profile.id, mint)
@@ -68,7 +74,7 @@ export function TokenCheckPage() {
         </label>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <span className="muted">{mints.length === 0 ? 'Adres bulunamadı' : `${mints.length} adres bulundu`}</span>
-          <button className="btn btn-primary" disabled={busy || mints.length === 0} onClick={run}>
+          <button className="btn btn-primary" disabled={busy || mints.length === 0} onClick={() => run()}>
             {busy ? 'Kontrol ediliyor…' : 'Kontrol et'}
           </button>
         </div>

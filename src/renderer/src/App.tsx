@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { supabaseConfigured } from './lib/supabase'
+import { TelegramProvider } from './lib/telegram'
 import { Layout, type Page } from './components/Layout'
 import { LoginPage } from './pages/Login'
 import { FeedPage } from './pages/Feed'
+import { SourcesPage } from './pages/Sources'
 import { TokenCheckPage } from './pages/TokenCheck'
 import { PositionsPage } from './pages/Positions'
 import { SettingsPage } from './pages/Settings'
@@ -33,17 +35,32 @@ export function App() {
 function Gate() {
   const { loading, session, profile } = useAuth()
   const [page, setPage] = useState<Page>('feed')
+  const [checkTarget, setCheckTarget] = useState<{ mint: string; n: number } | null>(null)
 
   if (loading) return <div className="login-wrap muted">Yükleniyor…</div>
   if (!session || !profile) return <LoginPage />
 
+  const openCheck = (mint: string) => {
+    setCheckTarget((prev) => ({ mint, n: (prev?.n ?? 0) + 1 }))
+    setPage('token')
+  }
+
   return (
-    <Layout page={page} onNavigate={setPage}>
-      {page === 'feed' && <FeedPage />}
-      {page === 'token' && <TokenCheckPage />}
-      {page === 'positions' && <PositionsPage />}
-      {page === 'settings' && <SettingsPage />}
-      {page === 'users' && profile.role === 'founder' && <UsersPage />}
-    </Layout>
+    <TelegramProvider>
+      <Layout
+        page={page}
+        onNavigate={(p) => {
+          setCheckTarget(null)
+          setPage(p)
+        }}
+      >
+        {page === 'feed' && <FeedPage onCheck={openCheck} />}
+        {page === 'sources' && <SourcesPage />}
+        {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
+        {page === 'positions' && <PositionsPage />}
+        {page === 'settings' && <SettingsPage />}
+        {page === 'users' && profile.role === 'founder' && <UsersPage />}
+      </Layout>
+    </TelegramProvider>
   )
 }

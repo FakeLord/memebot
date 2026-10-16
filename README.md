@@ -40,6 +40,15 @@ Kurallar veritabanında (RLS) uygulanır; arayüzü değiştirmek yetki kazandı
    `supabase/bootstrap-founder.sql` dosyasındaki e-postayı değiştirip SQL Editor'da çalıştırın.
 6. **Yerel ayar:** `.env.example` → `.env` olarak kopyalayın, Supabase URL ve anon anahtarı girin.
 
+## Telegram bağlantısı
+
+1. https://my.telegram.org → **API development tools** → bir uygulama oluşturup **API ID** ve **API Hash** alın.
+2. Uygulamada **Kaynaklar** ekranında API ID, API Hash ve telefon numarasını girin, gelen kodu doğrulayın.
+3. **Kanal ekle** ile izlemek istediğiniz kanal/grupları seçin.
+
+Uygulama hesabınızla sadece okur, mesaj göndermez. Ana hesap yerine ayrı bir Telegram hesabı önerilir.
+Oturum her bilgisayarda ayrı ve şifreli saklanır; aynı mesaj iki bilgisayarda yakalansa da bir kez sayılır.
+
 ## Geliştirme
 
 ```bash
@@ -78,7 +87,7 @@ openssl genpkey -algorithm ed25519 -out gmgn.pem && openssl pkey -in gmgn.pem -p
 - [x] Giriş, kullanıcı yönetimi, kill switch
 - [x] GMGN istemcisi (imzalı istekler), token güvenlik kontrolü
 - [x] GitHub Releases ile otomatik güncelleme
-- [ ] Telegram dinleyici (Faz 2)
+- [x] Telegram dinleyici (Faz 2) — migration: `supabase/migrations/20261016120000_signals.sql`
 - [ ] Karar motoru + manuel onay (Faz 3)
 - [ ] Alım-satım: dry-run → gerçek (Faz 4)
 - [ ] Pozisyon yönetimi + otomatik mod (Faz 5)
