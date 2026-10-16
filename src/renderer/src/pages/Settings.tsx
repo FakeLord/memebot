@@ -10,15 +10,16 @@ import { AppearanceSection } from './settings/Appearance'
 import { PresetsSection } from './settings/Presets'
 import { ShortcutsSection } from './settings/Shortcuts'
 import { DeploySettingsSection } from './settings/DeploySettings'
+import { WalletsSection } from './settings/Wallets'
 
 type Msg = { kind: 'ok' | 'error'; text: string } | null
 
-type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'deploy' | 'shortcuts' | 'about'
+type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'deploy' | 'wallets' | 'shortcuts' | 'about'
 
 const MENU: { group: string; items: { id: Section; label: string }[] }[] = [
   { group: 'Takip', items: [{ id: 'accounts', label: 'Hesaplar' }, { id: 'keywords', label: 'Anahtar kelimeler' }, { id: 'appearance', label: 'Görünüm' }] },
   { group: 'İşlem', items: [{ id: 'presets', label: "Ücret preset'leri" }, { id: 'connections', label: 'GMGN ve motor' }] },
-  { group: 'Deploy', items: [{ id: 'deploy', label: 'Genel' }] },
+  { group: 'Deploy', items: [{ id: 'deploy', label: 'Genel' }, { id: 'wallets', label: 'Cüzdanlar' }] },
   { group: 'Uygulama', items: [{ id: 'shortcuts', label: 'Kısayollar' }, { id: 'about', label: 'Hakkında' }] }
 ]
 
@@ -45,6 +46,7 @@ export function SettingsPage({ initial }: { initial?: Section }) {
         {section === 'presets' && <PresetsSection />}
         {section === 'connections' && <ConnectionsSection />}
         {section === 'deploy' && <DeploySettingsSection />}
+        {section === 'wallets' && <WalletsSection />}
         {section === 'shortcuts' && <ShortcutsSection />}
         {section === 'about' && <AboutSection />}
       </div>
@@ -58,7 +60,7 @@ function ConnectionsSection() {
     <div className="stack">
       <EngineCard />
       <GmgnCard />
-      <WalletCard />
+      <WalletsSection />
       {desktop && profile?.role === 'founder' && <EngineHostCard />}
     </div>
   )
@@ -189,71 +191,6 @@ function GmgnCard() {
         </button>
       </div>
       {!online && <p className="faint">Motor çalışmadığı için anahtar işlemleri şu an yapılamaz.</p>}
-    </div>
-  )
-}
-
-// İşlemler GMGN'de API anahtarına bağlı cüzdan üzerinden yapılır; burada hangisi kullanılacak seçilir.
-function WalletCard() {
-  const { me, online, run } = useEngine()
-  const [wallets, setWallets] = useState<WalletInfo[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const selected = me?.gmgn.wallet ?? null
-  if (!me?.gmgn.configured) return null
-
-  const load = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const r = await run('gmgn.wallets', {})
-      setWallets(r.wallets)
-      if (!r.wallets.length) setError('Bu API anahtarına bağlı Solana cüzdanı bulunamadı. gmgn.ai/ai sayfasından cüzdan bağlayın.')
-    } catch (e) {
-      setError(errText(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const choose = async (address: string) => {
-    try {
-      await run('gmgn.wallet', { address })
-    } catch (e) {
-      setError(errText(e))
-    }
-  }
-
-  return (
-    <div className="card stack">
-      <h2>İşlem cüzdanı</h2>
-      <div className="row">
-        <span className={`dot ${selected ? 'on' : 'off'}`} />
-        {selected ? <span className="mono">{selected}</span> : <span>Seçilmedi — alım-satım yapılamaz</span>}
-      </div>
-      {error && <div className="notice error">{error}</div>}
-      {wallets && wallets.length > 0 && (
-        <table>
-          <tbody>
-            {wallets.map((w) => (
-              <tr key={w.address}>
-                <td className="mono">{w.address}</td>
-                <td className="mono muted">{w.balance !== undefined ? `${w.balance} SOL` : ''}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className={`btn btn-sm ${w.address === selected ? '' : 'btn-primary'}`} disabled={w.address === selected} onClick={() => choose(w.address)}>
-                    {w.address === selected ? 'Seçili' : 'Seç'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <div>
-        <button className="btn btn-sm" disabled={busy || !online} onClick={load}>
-          {busy ? 'Getiriliyor…' : "GMGN'den cüzdanları getir"}
-        </button>
-      </div>
     </div>
   )
 }

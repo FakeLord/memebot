@@ -19,6 +19,7 @@ import {
   type FeeShare
 } from '../../../shared/deploy'
 import type { FeedItem } from '../../../shared/feed'
+import { shortAddr, useWallets } from '../lib/wallets'
 
 // Token deploy formu (modal ya da yan panel — Ayarlar → Deploy). Gönderiden otomatik doldurur.
 // Deneme modunda (Kurallar → Gerçek işlem kapalı) motor isteği sadece hazırlar ve kaydeder; GMGN'e gitmez.
@@ -114,6 +115,7 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
   const [result, setResult] = useState<{ id: string; dryRun: boolean; request: Record<string, unknown> } | null>(null)
   const [deploy, setDeploy] = useState<{ status: string; mint: string | null; error: string | null } | null>(null)
   const nameRef = useRef<HTMLInputElement>(null)
+  const wallets = useWallets()
 
   useEffect(() => nameRef.current?.focus(), [])
 
@@ -213,8 +215,27 @@ function DeployPanel({ item, snapshot, onClose }: { item?: FeedItem; snapshot?: 
           </button>
         </header>
 
-        <div className="muted" style={{ fontSize: 12 }}>
-          Cüzdan: <span className="mono">{me?.gmgn.wallet ? `${me.gmgn.wallet.slice(0, 6)}…${me.gmgn.wallet.slice(-6)}` : 'seçilmedi'}</span> · Ücret P
+        <div className="row muted" style={{ fontSize: 12 }}>
+          Cüzdan:
+          <select
+            className="input-sm"
+            value={me?.gmgn.wallet ?? ''}
+            disabled={!!result || wallets.busy}
+            onChange={(e) => e.target.value && wallets.makeDefault(e.target.value)}
+            title="Varsayılan cüzdanı değiştirir (alım-satım da bu cüzdandan yapılır)"
+          >
+            {!me?.gmgn.wallet && <option value="">seçilmedi</option>}
+            {wallets.rows
+              .filter((w) => !w.hidden || w.isDefault)
+              .map((w) => (
+                <option key={w.address} value={w.address}>
+                  {w.label ? `${w.label} · ` : ''}
+                  {shortAddr(w.address)}
+                  {w.balance !== undefined ? ` · ${w.balance.toFixed(3)} SOL` : ''}
+                </option>
+              ))}
+          </select>
+          · Ücret P
           {form.preset}: öncelik {fees.priorityFeeSol} · tip {fees.tipFeeSol} SOL · slippage {fees.slippage === 'auto' ? 'otomatik' : `%${fees.slippage}`}
         </div>
 
