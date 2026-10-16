@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+
+# Sırlar — ASLA commit edilmez
+.env
+.env.*
+!.env.example
+*.pem
+supabase/.temp/
+supabase/.branches/
