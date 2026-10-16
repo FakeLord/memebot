@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { supabaseConfigured } from './lib/supabase'
 import { TelegramProvider } from './lib/telegram'
+import { PipelineProvider } from './lib/pipeline'
+import { KillSwitchProvider } from './lib/killswitch'
+import { ApprovalsPage } from './pages/Approvals'
+import { RulesPage } from './pages/Rules'
 import { Layout, type Page } from './components/Layout'
 import { LoginPage } from './pages/Login'
 import { FeedPage } from './pages/Feed'
@@ -46,21 +50,27 @@ function Gate() {
   }
 
   return (
-    <TelegramProvider>
-      <Layout
-        page={page}
-        onNavigate={(p) => {
-          setCheckTarget(null)
-          setPage(p)
-        }}
-      >
-        {page === 'feed' && <FeedPage onCheck={openCheck} />}
-        {page === 'sources' && <SourcesPage />}
-        {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
-        {page === 'positions' && <PositionsPage />}
-        {page === 'settings' && <SettingsPage />}
-        {page === 'users' && profile.role === 'founder' && <UsersPage />}
-      </Layout>
-    </TelegramProvider>
+    <KillSwitchProvider>
+      <TelegramProvider>
+        <PipelineProvider>
+          <Layout
+            page={page}
+            onNavigate={(p) => {
+              setCheckTarget(null)
+              setPage(p)
+            }}
+          >
+            {page === 'feed' && <FeedPage onCheck={openCheck} />}
+            {page === 'approvals' && <ApprovalsPage onCheck={openCheck} />}
+            {page === 'sources' && <SourcesPage />}
+            {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
+            {page === 'positions' && <PositionsPage />}
+            {page === 'rules' && <RulesPage />}
+            {page === 'settings' && <SettingsPage />}
+            {page === 'users' && profile.role === 'founder' && <UsersPage />}
+          </Layout>
+        </PipelineProvider>
+      </TelegramProvider>
+    </KillSwitchProvider>
   )
 }

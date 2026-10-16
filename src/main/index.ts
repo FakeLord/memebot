@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { GmgnClient } from './gmgn/client'
 import { assertSigningKey } from './gmgn/signer'
+import type { GmgnPlan } from './gmgn/limiter'
 import { clearGmgnCredentials, loadGmgnCredentials, saveGmgnCredentials } from './secrets'
 import { setupUpdater } from './updater'
 import { TelegramService } from './telegram/service'
@@ -61,13 +62,21 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
       if (!apiKey?.trim()) throw new Error('API anahtarı boş')
       const normalized = pem.replace(/\\n/g, '\n').trim() + '\n'
       assertSigningKey(normalized)
-      saveGmgnCredentials(userId, { apiKey: apiKey.trim(), privateKeyPem: normalized })
+      const plan = loadGmgnCredentials(userId)?.plan
+      saveGmgnCredentials(userId, { apiKey: apiKey.trim(), privateKeyPem: normalized, plan })
       return { ok: true }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
     }
   })
   ipcMain.handle('gmgn:has', (_e, userId: string) => loadGmgnCredentials(userId) !== null)
+  ipcMain.handle('gmgn:getPlan', (_e, userId: string) => loadGmgnCredentials(userId)?.plan ?? 'free')
+  ipcMain.handle('gmgn:setPlan', (_e, userId: string, plan: string) => {
+    const creds = loadGmgnCredentials(userId)
+    if (!creds || !['free', 'plus', 'pro'].includes(plan)) return false
+    saveGmgnCredentials(userId, { ...creds, plan: plan as GmgnPlan })
+    return true
+  })
   ipcMain.handle('gmgn:clear', (_e, userId: string) => clearGmgnCredentials(userId))
 
   ipcMain.handle('gmgn:userInfo', (_e, userId: string) => clientFor(userId)?.userInfo() ?? NO_KEY)

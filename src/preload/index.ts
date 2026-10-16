@@ -12,6 +12,8 @@ const api: MemeBotApi = {
   gmgn: {
     saveCredentials: (userId, apiKey, pem) => ipcRenderer.invoke('gmgn:save', userId, apiKey, pem),
     hasCredentials: (userId) => ipcRenderer.invoke('gmgn:has', userId),
+    getPlan: (userId) => ipcRenderer.invoke('gmgn:getPlan', userId),
+    setPlan: (userId, plan) => ipcRenderer.invoke('gmgn:setPlan', userId, plan),
     clearCredentials: (userId) => ipcRenderer.invoke('gmgn:clear', userId),
     userInfo: (userId) => ipcRenderer.invoke('gmgn:userInfo', userId),
     tokenInfo: (userId, mint) => ipcRenderer.invoke('gmgn:tokenInfo', userId, mint),

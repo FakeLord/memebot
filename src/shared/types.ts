@@ -73,6 +73,8 @@ export interface MemeBotApi {
   gmgn: {
     saveCredentials(userId: string, apiKey: string, privateKeyPem: string): Promise<{ ok: boolean; error?: string }>
     hasCredentials(userId: string): Promise<boolean>
+    getPlan(userId: string): Promise<'free' | 'plus' | 'pro'>
+    setPlan(userId: string, plan: 'free' | 'plus' | 'pro'): Promise<boolean>
     clearCredentials(userId: string): Promise<void>
     userInfo(userId: string): Promise<GmgnResult>
     tokenInfo(userId: string, mint: string): Promise<GmgnResult>

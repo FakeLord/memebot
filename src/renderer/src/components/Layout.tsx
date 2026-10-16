@@ -1,54 +1,41 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ROLE_LABEL, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
+import { useKillSwitch } from '../lib/killswitch'
+import { usePipeline } from '../lib/pipeline'
 import type { UpdateStatus } from '../../../shared/types'
 
-export type Page = 'feed' | 'sources' | 'token' | 'positions' | 'settings' | 'users'
+export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'rules' | 'settings' | 'users'
 
 const TITLES: Record<Page, string> = {
   feed: 'Canlı Akış',
+  approvals: 'Onay Bekleyenler',
   sources: 'Kaynaklar',
   token: 'Token Kontrol',
   positions: 'Pozisyonlar',
+  rules: 'Kurallar',
   settings: 'Ayarlar',
   users: 'Kullanıcılar'
 }
 
 export function Layout({ page, onNavigate, children }: { page: Page; onNavigate: (p: Page) => void; children: ReactNode }) {
   const { profile, signOut } = useAuth()
-  const [killSwitch, setKillSwitch] = useState(false)
+  const killSwitch = useKillSwitch()
+  const { pendingCount, state, lastError } = usePipeline()
   const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' })
 
   useEffect(() => window.api.updater.onStatus(setUpdate), [])
 
-  useEffect(() => {
-    supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'kill_switch')
-      .maybeSingle()
-      .then(({ data }) => setKillSwitch(data?.value === true))
-    const ch = supabase
-      .channel('settings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.kill_switch' }, (p) =>
-        setKillSwitch((p.new as { value?: unknown })?.value === true)
-      )
-      .subscribe()
-    return () => {
-      supabase.removeChannel(ch)
-    }
-  }, [])
-
   const toggleKill = async () => {
     const next = !killSwitch
-    const { error } = await supabase.from('app_settings').update({ value: next, updated_by: profile!.id, updated_at: new Date().toISOString() }).eq('key', 'kill_switch')
-    if (!error) {
-      setKillSwitch(next)
-      await supabase.from('audit_log').insert({ action: next ? 'kill_switch.on' : 'kill_switch.off' })
-    }
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: next, updated_by: profile!.id, updated_at: new Date().toISOString() })
+      .eq('key', 'kill_switch')
+    if (!error) await supabase.from('audit_log').insert({ action: next ? 'kill_switch.on' : 'kill_switch.off' })
   }
 
-  const items: Page[] = ['feed', 'sources', 'token', 'positions', 'settings']
+  const items: Page[] = ['feed', 'approvals', 'sources', 'token', 'positions', 'rules', 'settings']
   if (profile?.role === 'founder') items.push('users')
 
   return (
@@ -56,8 +43,9 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
       <aside className="sidebar">
         <div className="brand">MemeBot</div>
         {items.map((p) => (
-          <button key={p} className="nav-item" aria-current={page === p ? 'page' : undefined} onClick={() => onNavigate(p)}>
-            {TITLES[p]}
+          <button key={p} className="nav-item row" aria-current={page === p ? 'page' : undefined} onClick={() => onNavigate(p)}>
+            <span style={{ flex: 1 }}>{TITLES[p]}</span>
+            {p === 'approvals' && pendingCount > 0 && <span className="badge">{pendingCount}</span>}
           </button>
         ))}
         <div className="sidebar-foot">
@@ -74,6 +62,17 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
         <header className="topbar">
           <h1>{TITLES[page]}</h1>
           <div className="row">
+            {state === 'working' && <span className="faint">Güvenlik kontrolü…</span>}
+            {state === 'no_key' && (
+              <button className="btn btn-sm btn-danger" onClick={() => onNavigate('settings')}>
+                GMGN anahtarı yok — kontrol yapılamıyor
+              </button>
+            )}
+            {lastError && state !== 'no_key' && (
+              <span className="neg" title={lastError}>
+                Kontrol hatası
+              </span>
+            )}
             {update.state === 'ready' && (
               <button className="btn btn-sm" onClick={() => window.api.updater.install()}>
                 v{update.version} hazır — yeniden başlat

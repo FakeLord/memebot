@@ -2,23 +2,19 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { extractMints } from '../../../shared/extract'
-import { evaluateSafety, type SafetyReport } from '../../../shared/safety'
-
-const VERDICT_LABEL = { pass: 'GEÇTİ', warn: 'UYARI', fail: 'RED' } as const
+import { usePipeline } from '../lib/pipeline'
+import { evaluateSafety, summarizeToken, usd, VERDICT_LABEL, type SafetyReport, type TokenSummary } from '../../../shared/safety'
 
 interface Checked {
   mint: string
-  name?: string
-  symbol?: string
-  priceUsd?: number
+  summary?: TokenSummary
   report?: SafetyReport
   error?: string
 }
 
-type Obj = Record<string, unknown>
-
 export function TokenCheckPage({ initial }: { initial?: string }) {
   const { profile } = useAuth()
+  const { rule } = usePipeline()
   const [text, setText] = useState(initial ?? '')
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<Checked[]>([])
@@ -45,15 +41,8 @@ export function TokenCheckPage({ initial }: { initial?: string }) {
         out.push({ mint, error: (!info.ok && info.error) || (!security.ok && security.error) || 'Bilinmeyen hata' })
         continue
       }
-      const report = evaluateSafety(security.data, info.data)
-      const d = (info.data ?? {}) as Obj
-      out.push({
-        mint,
-        name: typeof d.name === 'string' ? d.name : undefined,
-        symbol: typeof d.symbol === 'string' ? d.symbol : undefined,
-        priceUsd: d.price !== undefined ? Number(d.price) : undefined,
-        report
-      })
+      const report = evaluateSafety(security.data, info.data, rule.thresholds)
+      out.push({ mint, summary: summarizeToken(info.data), report })
       await supabase.from('safety_checks').insert({
         mint,
         result: report.result,
@@ -85,12 +74,14 @@ export function TokenCheckPage({ initial }: { initial?: string }) {
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div>
               <div>
-                {r.symbol ?? '—'} <span className="muted">{r.name}</span>
+                {r.summary?.symbol ?? '—'} <span className="muted">{r.summary?.name}</span>
               </div>
               <div className="mono faint">{r.mint}</div>
             </div>
             <div className="row">
-              {r.priceUsd !== undefined && <span className="mono muted">${r.priceUsd.toPrecision(4)}</span>}
+              {r.summary?.mcapUsd !== undefined && <span className="mono muted">MC {usd(r.summary.mcapUsd)}</span>}
+              {r.summary?.liquidityUsd !== undefined && <span className="mono muted">Lik. {usd(r.summary.liquidityUsd)}</span>}
+              {r.summary?.priceUsd !== undefined && <span className="mono muted">${r.summary.priceUsd.toPrecision(4)}</span>}
               {r.report && <span className={`badge ${r.report.result}`}>{VERDICT_LABEL[r.report.result]}</span>}
               <a className="btn btn-sm" href={`https://gmgn.ai/sol/token/${r.mint}`} target="_blank" rel="noreferrer">
                 GMGN

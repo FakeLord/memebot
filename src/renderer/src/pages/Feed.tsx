@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useTelegram } from '../lib/telegram'
+import { usePipeline } from '../lib/pipeline'
+import { extractMints } from '../../../shared/extract'
+import { evaluateSafety, VERDICT_LABEL, type Verdict } from '../../../shared/safety'
 
 interface SignalRow {
   id: string
@@ -15,6 +18,8 @@ interface SignalRow {
 interface Hits {
   [mint: string]: number
 }
+
+type Raw = { info: unknown; security: unknown }
 
 function latency(msgTs: string | null, receivedAt: string): string {
   if (!msgTs) return '—'
@@ -36,6 +41,10 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const [hits, setHits] = useState<Hits>({})
   const [loaded, setLoaded] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const { rule } = usePipeline()
+  const [raws, setRaws] = useState<Record<string, Raw>>({})
+  const [manual, setManual] = useState('')
+  const [manualMsg, setManualMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -52,6 +61,16 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
       if (mints.length) {
         const { data: h } = await supabase.from('signal_hits').select('mint, hit_count').eq('user_id', profile.id).in('mint', mints)
         setHits(Object.fromEntries(((h as { mint: string; hit_count: number }[]) ?? []).map((x) => [x.mint, x.hit_count])))
+        // Her mint için en son güvenlik kontrolü (karar kullanıcının kendi eşikleriyle hesaplanır)
+        const { data: checks } = await supabase
+          .from('safety_checks')
+          .select('mint, raw, checked_at')
+          .in('mint', mints)
+          .order('checked_at', { ascending: false })
+          .limit(300)
+        const latest: Record<string, Raw> = {}
+        for (const c of (checks as { mint: string; raw: Raw }[]) ?? []) if (!latest[c.mint] && c.raw) latest[c.mint] = c.raw
+        setRaws(latest)
       }
       setLoaded(true)
     }
@@ -59,6 +78,7 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
     const ch = supabase
       .channel('feed-signals')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signals', filter: `user_id=eq.${profile.id}` }, load)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'safety_checks' }, load)
       .subscribe()
     return () => {
       supabase.removeChannel(ch)
@@ -73,12 +93,54 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
 
   const watching = sources.filter((s) => s.is_active).length
 
+  // Telegram olmadan test: adresi/mesajı elle akışa ekler (kaynak: "Manuel")
+  const addManual = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+    const mints = extractMints(manual)
+    if (!mints.length) return setManualMsg('Geçerli bir token adresi bulunamadı.')
+    const { data: src, error: srcErr } = await supabase
+      .from('sources')
+      .upsert({ user_id: profile.id, type: 'manual', chat_id: 'manual', title: 'Manuel', is_active: true }, { onConflict: 'user_id,type,chat_id' })
+      .select('id')
+      .single()
+    if (srcErr || !src) return setManualMsg(srcErr?.message ?? 'Kaynak oluşturulamadı')
+    for (const mint of mints.slice(0, 5)) {
+      const { error } = await supabase.rpc('record_signal', {
+        p_source_id: src.id,
+        p_msg_id: Date.now(),
+        p_mint: mint,
+        p_raw_text: manual,
+        p_msg_ts: new Date().toISOString()
+      })
+      if (error) return setManualMsg(error.message)
+    }
+    setManual('')
+    setManualMsg(null)
+  }
+
+  const verdictOf = (mint: string): Verdict | undefined =>
+    raws[mint] ? evaluateSafety(raws[mint].security, raws[mint].info, rule.thresholds).result : undefined
+
   return (
     <div className="stack">
       <div className="row muted">
         <span className={`dot ${status.state === 'connected' ? 'on' : 'off'}`} />
         {status.state === 'connected' ? `Telegram bağlı · ${watching} kanal izleniyor` : 'Telegram bağlı değil — Kaynaklar ekranından bağlanın'}
       </div>
+
+      <form className="row" onSubmit={addManual}>
+        <input
+          style={{ flex: 1 }}
+          value={manual}
+          onChange={(e) => setManual(e.target.value)}
+          placeholder="Elle sinyal ekle: token adresi ya da mesaj yapıştırın"
+        />
+        <button className="btn" disabled={!manual.trim()}>
+          Akışa ekle
+        </button>
+      </form>
+      {manualMsg && <div className="notice error">{manualMsg}</div>}
 
       {loaded && rows.length === 0 ? (
         <div className="empty">
@@ -95,6 +157,7 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
                 <th>Zaman</th>
                 <th>Kaynak</th>
                 <th>Token</th>
+                <th>Güvenlik</th>
                 <th>Çağrı</th>
                 <th>Gecikme</th>
                 <th />
@@ -112,6 +175,12 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
                   </td>
                   <td className="mono" title={r.mint}>
                     {r.mint.slice(0, 6)}…{r.mint.slice(-6)}
+                  </td>
+                  <td>
+                    {(() => {
+                      const v = verdictOf(r.mint)
+                      return v ? <span className={`badge ${v}`}>{VERDICT_LABEL[v]}</span> : <span className="faint">—</span>
+                    })()}
                   </td>
                   <td>{hits[r.mint] && hits[r.mint] > 1 ? <span className="badge warn">{hits[r.mint]}×</span> : <span className="faint">1</span>}</td>
                   <td className="muted mono">{latency(r.msg_ts, r.received_at)}</td>

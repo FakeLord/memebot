@@ -88,6 +88,6 @@ openssl genpkey -algorithm ed25519 -out gmgn.pem && openssl pkey -in gmgn.pem -p
 - [x] GMGN istemcisi (imzalı istekler), token güvenlik kontrolü
 - [x] GitHub Releases ile otomatik güncelleme
 - [x] Telegram dinleyici (Faz 2) — migration: `supabase/migrations/20261016120000_signals.sql`
-- [ ] Karar motoru + manuel onay (Faz 3)
+- [x] Otomatik güvenlik kontrolü + kurallar + manuel onay (Faz 3) — migration: `supabase/migrations/20261016150000_candidates.sql`
 - [ ] Alım-satım: dry-run → gerçek (Faz 4)
 - [ ] Pozisyon yönetimi + otomatik mod (Faz 5)

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 
+type Plan = 'free' | 'plus' | 'pro'
+
 export function SettingsPage() {
   const { profile } = useAuth()
   const userId = profile!.id
@@ -10,9 +12,11 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState('')
+  const [plan, setPlan] = useState<Plan>('free')
 
   useEffect(() => {
     window.api.gmgn.hasCredentials(userId).then(setHasKey)
+    window.api.gmgn.getPlan(userId).then(setPlan)
     window.api.appVersion().then(setVersion)
   }, [userId])
 
@@ -55,6 +59,22 @@ export function SettingsPage() {
           <span className={`dot ${hasKey ? 'on' : 'off'}`} />
           <span>{hasKey === null ? '…' : hasKey ? 'Anahtar kayıtlı' : 'Anahtar yok'}</span>
         </div>
+        {hasKey && (
+          <label style={{ maxWidth: 320 }}>
+            GMGN planı (istek hızı sınırı)
+            <select
+              value={plan}
+              onChange={async (e) => {
+                const p = e.target.value as Plan
+                if (await window.api.gmgn.setPlan(userId, p)) setPlan(p)
+              }}
+            >
+              <option value="free">Free — 5 istek/sn</option>
+              <option value="plus">Plus — 20 istek/sn</option>
+              <option value="pro">Pro — 50 istek/sn</option>
+            </select>
+          </label>
+        )}
         {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
         <label>
           API Key
