@@ -1,7 +1,7 @@
 import { GmgnClient } from './client'
 import { loadGmgnCredentials } from '../secrets'
 import { isLikelyMint, SOL_MINT } from '../../shared/extract'
-import type { BuyRequest, GmgnResult, SellRequest, SwapParams, WalletInfo } from '../../shared/types'
+import type { BuyRequest, GmgnResult, HoldingInfo, SellRequest, SwapParams, WalletInfo } from '../../shared/types'
 
 // Alım-satımın son savunma hattı. Arayüz kuralları (limitler, onay) zaten uyguladı;
 // burada sadece "ne olursa olsun" geçerli kurallar var.
@@ -101,6 +101,36 @@ export async function queryOrder(userId: string, orderId: string): Promise<GmgnR
   if (typeof ctx === 'string') return fail(ctx)
   if (!/^[\w-]{1,128}$/.test(orderId)) return fail('Geçersiz emir kimliği')
   return ctx.client.queryOrder(orderId)
+}
+
+// Cüzdandaki token'lar: { list: [{ token: { token_address, price }, balance }], next }
+// (bazı sürümlerde gövde { data: … } ile sarılı). complete=false ise liste eksik olabilir.
+export async function holdings(
+  userId: string
+): Promise<{ ok: true; items: HoldingInfo[]; complete: boolean } | { ok: false; error: string }> {
+  const ctx = ready(userId)
+  if (typeof ctx === 'string') return { ok: false, error: ctx }
+  const items: HoldingInfo[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 3; page++) {
+    const res = await ctx.client.walletHoldings(ctx.wallet, cursor)
+    if (!res.ok) return { ok: false, error: res.error }
+    const body = (res.data && typeof res.data === 'object' && 'data' in (res.data as object) ? (res.data as { data: unknown }).data : res.data) as {
+      list?: unknown[]
+      next?: unknown
+    }
+    for (const row of body?.list ?? []) {
+      const r = row as { token?: { token_address?: string; price?: unknown }; balance?: unknown }
+      const mint = r.token?.token_address
+      if (!mint || !isLikelyMint(mint)) continue
+      const balance = Number(r.balance)
+      const price = Number(r.token?.price)
+      items.push({ mint, balance: Number.isFinite(balance) ? balance : 0, priceUsd: Number.isFinite(price) ? price : undefined })
+    }
+    cursor = typeof body?.next === 'string' && body.next ? body.next : undefined
+    if (!cursor) return { ok: true, items, complete: true }
+  }
+  return { ok: true, items, complete: false }
 }
 
 // /v1/user/info yanıt şeması belgelenmemiş: içindeki Solana adreslerini toplarız.

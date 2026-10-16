@@ -103,6 +103,11 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
   ipcMain.handle('trade:buy', (_e, userId: string, r: BuyRequest) => trade.buy(userId, r))
   ipcMain.handle('trade:sell', (_e, userId: string, r: SellRequest) => trade.sell(userId, r))
   ipcMain.handle('trade:queryOrder', (_e, userId: string, orderId: string) => trade.queryOrder(userId, String(orderId)))
+  ipcMain.handle('trade:holdings', (_e, userId: string) => trade.holdings(userId))
+  ipcMain.handle('trade:tokenPrice', (_e, userId: string, mint: string) => {
+    if (!isLikelyMint(mint)) return BAD_MINT
+    return clientFor(userId)?.tokenPrice(mint) ?? NO_KEY
+  })
 
   const telegram = new TelegramService({
     status: (s) => win?.webContents.send('telegram:status', s),

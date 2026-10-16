@@ -138,7 +138,9 @@ export class GmgnClient {
   queryOrder(orderId: string, chain = 'sol') {
     return this.call('GET', '/v1/trade/query_order', { order_id: orderId, chain }, null, true, 5, Priority.Order)
   }
-  walletHoldings(walletAddress: string, chain = 'sol') {
-    return this.call('GET', '/v1/user/wallet_holdings', { chain, wallet_address: walletAddress }, null, true, 1, Priority.Price)
+  walletHoldings(walletAddress: string, cursor?: string, chain = 'sol') {
+    const q: Query = { chain, wallet_address: walletAddress, limit: 50 }
+    if (cursor) q.cursor = cursor
+    return this.call('GET', '/v1/user/wallet_holdings', q, null, true, 2, Priority.Price, 0)
   }
 }

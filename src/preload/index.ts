@@ -25,7 +25,9 @@ const api: MemeBotApi = {
     selectedWallet: (userId) => ipcRenderer.invoke('trade:selectedWallet', userId),
     buy: (userId, r) => ipcRenderer.invoke('trade:buy', userId, r),
     sell: (userId, r) => ipcRenderer.invoke('trade:sell', userId, r),
-    queryOrder: (userId, orderId) => ipcRenderer.invoke('trade:queryOrder', userId, orderId)
+    queryOrder: (userId, orderId) => ipcRenderer.invoke('trade:queryOrder', userId, orderId),
+    holdings: (userId) => ipcRenderer.invoke('trade:holdings', userId),
+    tokenPrice: (userId, mint) => ipcRenderer.invoke('trade:tokenPrice', userId, mint)
   },
   telegram: {
     attach: (userId) => ipcRenderer.invoke('telegram:attach', userId),

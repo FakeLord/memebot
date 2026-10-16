@@ -3,6 +3,7 @@ import { ROLE_LABEL, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
+import { useOrders } from '../lib/orders'
 import type { UpdateStatus } from '../../../shared/types'
 
 export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'orders' | 'rules' | 'settings' | 'users'
@@ -22,7 +23,8 @@ const TITLES: Record<Page, string> = {
 export function Layout({ page, onNavigate, children }: { page: Page; onNavigate: (p: Page) => void; children: ReactNode }) {
   const { profile, signOut } = useAuth()
   const killSwitch = useKillSwitch()
-  const { pendingCount, state, lastError } = usePipeline()
+  const { pendingCount, state, lastError, rule } = usePipeline()
+  const { autoNotice } = useOrders()
   const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' })
 
   useEffect(() => window.api.updater.onStatus(setUpdate), [])
@@ -63,6 +65,16 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
         <header className="topbar">
           <h1>{TITLES[page]}</h1>
           <div className="row">
+            {rule.mode === 'auto' && (
+              <span className={`badge ${rule.limits.liveTrading ? 'fail' : 'warn'}`}>
+                OTOMATİK · {rule.limits.liveTrading ? 'GERÇEK' : 'DENEME'}
+              </span>
+            )}
+            {autoNotice && (
+              <span className="neg" title={autoNotice}>
+                {autoNotice.length > 60 ? autoNotice.slice(0, 60) + '…' : autoNotice}
+              </span>
+            )}
             {state === 'working' && <span className="faint">Güvenlik kontrolü…</span>}
             {state === 'no_key' && (
               <button className="btn btn-sm btn-danger" onClick={() => onNavigate('settings')}>

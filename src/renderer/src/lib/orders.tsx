@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import { canTrade, useAuth } from './auth'
 import { usePipeline, type Rule } from './pipeline'
@@ -68,13 +68,16 @@ function exec(rule: Rule): ExecParams {
 interface OrdersCtx {
   buy: (p: { mint: string; amountSol: number; candidateId?: string; symbol?: string }) => Promise<string | null>
   sell: (position: PositionRow, percent: number) => Promise<string | null>
+  sellAll: () => Promise<string[]>
+  autoNotice: string | null
 }
 
 const Ctx = createContext<OrdersCtx | null>(null)
 
 export function OrdersProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
-  const { rule } = usePipeline()
+  const { rule, saveRule } = usePipeline()
+  const [autoNotice, setAutoNotice] = useState<string | null>(null)
   const killSwitch = useKillSwitch()
   const ruleRef = useRef(rule)
   ruleRef.current = rule
@@ -100,13 +103,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       if (order.side === 'buy') {
         const outRaw = String(get(report, 'output_amount') ?? '')
         let price = num(get(report, 'price_usd'))
+        let decimals = num(get(report, 'output_token_decimals'))
         let mcap: number | undefined
-        if (price === undefined || order.is_dry_run) {
+        if (price === undefined || decimals === undefined || order.is_dry_run) {
           const info = await window.api.gmgn.tokenInfo(profile!.id, order.mint)
           if (info.ok) {
             const s = summarizeToken(info.data)
             price = price ?? s.priceUsd
             mcap = s.mcapUsd
+            decimals = decimals ?? num(get(info.data, 'decimals'))
           }
         }
         const { error } = await supabase.from('positions').insert({
@@ -117,6 +122,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           entry_price: price ?? null,
           entry_mcap: mcap ?? null,
           amount_raw: /^\d+$/.test(outRaw) ? outRaw : null,
+          amount_initial_raw: /^\d+$/.test(outRaw) ? outRaw : null,
+          decimals: decimals ?? null,
           cost_sol: Number(order.amount_in) / LAMPORTS,
           is_dry_run: order.is_dry_run,
           buy_order_id: order.id
@@ -137,7 +144,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           .update({
             amount_raw: remaining,
             proceeds_sol: (Number(pos?.proceeds_sol) || 0) + outSol,
-            ...(closed ? { status: 'closed', closed_at: new Date().toISOString() } : {})
+            ...(closed ? { status: 'closed', closed_at: new Date().toISOString(), close_reason: 'manual' } : {})
           })
           .eq('id', order.position_id)
       }
@@ -305,6 +312,89 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     [profile?.id, profile?.role, submit]
   )
 
+  // --- Tümünü sat: açık tüm pozisyonlar %100 (kill switch açıkken de çalışır)
+  const sellAll = useCallback(async () => {
+    if (!profile) return ['Oturum yok']
+    const { data } = await supabase
+      .from('positions')
+      .select('id, mint, symbol, amount_raw, cost_sol, proceeds_sol, is_dry_run, status')
+      .eq('user_id', profile.id)
+      .eq('status', 'open')
+    const errors: string[] = []
+    for (const p of (data as PositionRow[]) ?? []) {
+      const err = await sell(p, 100)
+      if (err) errors.push(`${p.symbol ?? p.mint.slice(0, 6)}: ${err}`)
+    }
+    await supabase.from('audit_log').insert({ action: 'positions.sell_all', detail: { count: data?.length ?? 0, errors } })
+    return errors
+  }, [profile?.id, sell])
+
+  // --- Otomatik mod: yeni aday düşünce onaysız al
+  //  * Aday "bekliyor → onaylandı" geçişini kazanan bilgisayar alır (iki bilgisayar = tek alım)
+  //  * Bugünkü gerçekleşen zarar sınırı aşıldıysa mod kendini Manuel'e çeker
+  //  * Tutar, günlük ve açık pozisyon limitleri ile kill switch buy() içinde zaten uygulanır
+  const buyRef = useRef(buy)
+  buyRef.current = buy
+  const saveRuleRef = useRef(saveRule)
+  saveRuleRef.current = saveRule
+
+  useEffect(() => {
+    if (!profile || !canTrade(profile.role)) return
+    const lossToday = async (dryRun: boolean) => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const { data } = await supabase
+        .from('positions')
+        .select('cost_sol, proceeds_sol')
+        .eq('user_id', profile.id)
+        .eq('status', 'closed')
+        .eq('is_dry_run', dryRun)
+        .gte('closed_at', today.toISOString())
+      return ((data as { cost_sol: number | null; proceeds_sol: number }[]) ?? []).reduce(
+        (a, p) => a + (Number(p.proceeds_sol) || 0) - (Number(p.cost_sol) || 0),
+        0
+      )
+    }
+
+    const ch = supabase
+      .channel('auto-exec')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'candidates', filter: `user_id=eq.${profile.id}` }, async (ev) => {
+        const r = ruleRef.current
+        const c = ev.new as { id: string; mint: string; status: string; summary?: { symbol?: string } }
+        if (r.mode !== 'auto' || c.status !== 'pending') return
+
+        const pnl = await lossToday(!r.limits.liveTrading)
+        if (pnl <= -r.limits.dailyLossLimitSol) {
+          const msg = `Otomatik mod kapatıldı: bugünkü zarar ${pnl.toFixed(3)} SOL, sınır -${r.limits.dailyLossLimitSol} SOL.`
+          await saveRuleRef.current({ ...r, mode: 'manual' })
+          await supabase.from('audit_log').insert({ action: 'auto.disabled', detail: { reason: 'daily_loss', pnl } })
+          setAutoNotice(msg)
+          return
+        }
+
+        const amount = Math.min(r.limits.autoBuySol, r.limits.maxBuySol)
+        const { data: won } = await supabase
+          .from('candidates')
+          .update({ status: 'approved', amount_sol: amount, auto: true, decided_at: new Date().toISOString() })
+          .eq('id', c.id)
+          .eq('status', 'pending')
+          .select('id')
+        if (!won?.length) return // başka bilgisayar ya da kullanıcı karar verdi
+
+        const err = await buyRef.current({ mint: c.mint, amountSol: amount, candidateId: c.id, symbol: c.summary?.symbol })
+        if (err) {
+          await supabase.from('audit_log').insert({ action: 'auto.buy_failed', detail: { mint: c.mint, error: err } })
+          setAutoNotice(`Otomatik alım yapılamadı (${c.summary?.symbol ?? c.mint.slice(0, 6)}): ${err}`)
+        } else {
+          setAutoNotice(null)
+        }
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(ch)
+    }
+  }, [profile?.id, profile?.role])
+
   // --- kurtarma: uygulama kapanırken yarım kalan gerçek emirleri izlemeye devam et
   useEffect(() => {
     if (!profile || !canTrade(profile.role)) return
@@ -318,7 +408,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => ((data as OrderRow[]) ?? []).forEach((o) => track(o)))
   }, [profile?.id, track])
 
-  return <Ctx.Provider value={{ buy, sell }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ buy, sell, sellAll, autoNotice }}>{children}</Ctx.Provider>
 }
 
 export function useOrders(): OrdersCtx {

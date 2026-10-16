@@ -20,8 +20,11 @@ export interface RuleLimits {
   priorityFeeSol: number
   tipFeeSol: number
   antiMev: boolean
-  dailyMaxSol: number // gerçek modda gün içinde harcanabilecek toplam SOL
+  dailyMaxSol: number // gün içinde harcanabilecek toplam SOL (deneme ve gerçek ayrı sayılır)
   maxOpenPositions: number
+  // --- otomatik mod (Faz 5)
+  autoBuySol: number // otomatik alım tutarı
+  dailyLossLimitSol: number // bugünkü gerçekleşen zarar bunu aşarsa otomatik mod kendini kapatır
 }
 
 export interface Rule {
@@ -42,7 +45,9 @@ export const DEFAULT_LIMITS: RuleLimits = {
   tipFeeSol: 0.001,
   antiMev: true,
   dailyMaxSol: 2,
-  maxOpenPositions: 5
+  maxOpenPositions: 5,
+  autoBuySol: 0.05,
+  dailyLossLimitSol: 0.5
 }
 
 export const DEFAULT_TPSL: ConditionOrder[] = [

@@ -90,4 +90,4 @@ openssl genpkey -algorithm ed25519 -out gmgn.pem && openssl pkey -in gmgn.pem -p
 - [x] Telegram dinleyici (Faz 2) — migration: `supabase/migrations/20261016120000_signals.sql`
 - [x] Otomatik güvenlik kontrolü + kurallar + manuel onay (Faz 3) — migration: `supabase/migrations/20261016150000_candidates.sql`
 - [x] Alım-satım: deneme modu + gerçek mod, TP/SL, limitler, Emirler ekranı (Faz 4) — migration: `supabase/migrations/20261016180000_trading.sql`
-- [ ] Pozisyon yönetimi + otomatik mod (Faz 5)
+- [x] Canlı fiyat/PnL, GMGN TP/SL eşitleme, Tümünü sat, otomatik mod (Faz 5) — migration: `supabase/migrations/20261016210000_positions_auto.sql`

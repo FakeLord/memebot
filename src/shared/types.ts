@@ -36,6 +36,12 @@ export interface SwapParams {
   sell_ratio_type?: 'buy_amount' | 'hold_amount'
 }
 
+export interface HoldingInfo {
+  mint: string
+  balance: number // okunabilir birim
+  priceUsd?: number
+}
+
 export interface WalletInfo {
   address: string
   balance?: number
@@ -112,6 +118,8 @@ export interface MemeBotApi {
     buy(userId: string, r: BuyRequest): Promise<GmgnResult>
     sell(userId: string, r: SellRequest): Promise<GmgnResult>
     queryOrder(userId: string, orderId: string): Promise<GmgnResult>
+    holdings(userId: string): Promise<{ ok: true; items: HoldingInfo[]; complete: boolean } | { ok: false; error: string }>
+    tokenPrice(userId: string, mint: string): Promise<GmgnResult>
   }
   telegram: {
     attach(userId: string): Promise<TelegramStatus>

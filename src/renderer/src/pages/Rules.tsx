@@ -30,7 +30,7 @@ const BOOL_FIELDS: { key: BoolKey; label: string }[] = [
 const MODES: { value: TradeMode; label: string; hint: string; disabled?: boolean }[] = [
   { value: 'watch', label: 'Sadece izle', hint: 'Sinyaller kontrol edilir, onaya düşmez.' },
   { value: 'manual', label: 'Manuel onay', hint: 'Güvenlikten geçenler Onay Bekleyenler ekranına düşer.' },
-  { value: 'auto', label: 'Otomatik', hint: 'Faz 5 ile gelecek.', disabled: true }
+  { value: 'auto', label: 'Otomatik', hint: 'Güvenlikten geçenler onaysız alınır; limitler ve günlük zarar sınırı geçerli.' }
 ]
 
 export function RulesPage() {
@@ -48,6 +48,8 @@ export function RulesPage() {
   const save = async () => {
     const presets = draft.limits.buyPresetsSol.filter((n) => n > 0)
     if (!presets.length) return setMsg({ kind: 'error', text: 'En az bir alım tutarı girin.' })
+    if (draft.mode === 'auto' && !(draft.limits.autoBuySol > 0 && draft.limits.autoBuySol <= draft.limits.maxBuySol))
+      return setMsg({ kind: 'error', text: "Otomatik alım tutarı 0'dan büyük ve işlem başı maks. tutardan küçük olmalı." })
     for (const r of draft.tpSl) {
       const ratio = Number(r.sell_ratio)
       if (!(ratio >= 1 && ratio <= 100)) return setMsg({ kind: 'error', text: 'TP/SL satış oranı 1–100 olmalı.' })
@@ -77,7 +79,18 @@ export function RulesPage() {
                 name="mode"
                 disabled={m.disabled}
                 checked={draft.mode === m.value}
-                onChange={() => setDraft((d) => ({ ...d, mode: m.value }))}
+                onChange={() => {
+                  if (
+                    m.value === 'auto' &&
+                    !confirm(
+                      draft.limits.liveTrading
+                        ? 'Otomatik + GERÇEK işlem: güvenlikten geçen her token için onay sormadan gerçek SOL harcanacak. Emin misiniz?'
+                        : 'Otomatik mod deneme modunda çalışacak (para harcanmaz). Devam?'
+                    )
+                  )
+                    return
+                  setDraft((d) => ({ ...d, mode: m.value }))
+                }}
               />
               <span>{m.label}</span>
               <span className="faint">— {m.hint}</span>
@@ -252,6 +265,14 @@ function TradingCard({ draft, setDraft }: { draft: Rule; setDraft: React.Dispatc
         <label>
           Günlük maks. harcama (SOL)
           <input type="number" min={0} step="any" value={l.dailyMaxSol} onChange={(e) => setL('dailyMaxSol', numIn(e.target.value))} />
+        </label>
+        <label>
+          Otomatik alım tutarı (SOL)
+          <input type="number" min={0} step="any" value={l.autoBuySol} onChange={(e) => setL('autoBuySol', numIn(e.target.value))} />
+        </label>
+        <label>
+          Günlük zarar sınırı (SOL) <span className="faint">· aşılınca otomatik mod kapanır</span>
+          <input type="number" min={0} step="any" value={l.dailyLossLimitSol} onChange={(e) => setL('dailyLossLimitSol', numIn(e.target.value))} />
         </label>
         <label>
           Aynı anda maks. açık pozisyon
