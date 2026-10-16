@@ -2,7 +2,7 @@
   "name": "memebot",
   "productName": "MemeBot",
   "version": "0.1.5",
-  "description": "Telegram sinyallerinden GMGN üzerinden meme coin alım-satımı yapan masaüstü uygulaması",
+  "description": "Telegram ve X sinyallerinden GMGN üzerinden meme coin alım-satımı yapan uygulama (masaüstü + web + motor)",
   "main": "./out/main/index.js",
   "author": "FakeLord",
   "license": "UNLICENSED",
@@ -13,7 +13,11 @@
     "build": "npm run typecheck && electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "npm run build && electron-builder --win --publish never",
-    "release": "npm run build && electron-builder --win --publish always"
+    "release": "npm run build && electron-builder --win --publish always",
+    "build:web": "tsc --noEmit -p tsconfig.web.json && vite build --config vite.web.config.mts",
+    "dev:web": "vite --config vite.web.config.mts",
+    "test": "vitest run",
+    "engine": "node --env-file=.env.engine out/main/engine.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -30,7 +34,10 @@
     "electron-vite": "^6.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "supabase": "^2.121.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.0",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }

@@ -1,8 +1,9 @@
-import type { MemeBotApi } from '../shared/types'
+import type { DesktopApi } from '../shared/types'
 
 declare global {
   interface Window {
-    api: MemeBotApi
+    // Sadece masaüstü uygulamasında var; tarayıcıda undefined
+    desktop?: DesktopApi
   }
 }
 

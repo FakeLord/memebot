@@ -57,9 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session?.user.id])
 
+  // Telegram ve diğer bağlantılar motorda çalışmaya devam eder; sadece bu oturum kapanır
   const signOut = async () => {
-    // Telegram bağlantısını kapat (oturum bu bilgisayarda kayıtlı kalır)
-    await window.api.telegram.detach()
     await supabase.auth.signOut()
   }
 

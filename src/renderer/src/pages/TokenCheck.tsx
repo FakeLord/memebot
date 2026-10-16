@@ -1,23 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../lib/auth'
-import { supabase } from '../lib/supabase'
 import { extractMints } from '../../../shared/extract'
-import { usePipeline } from '../lib/pipeline'
-import { evaluateSafety, summarizeToken, usd, VERDICT_LABEL, type SafetyReport, type TokenSummary } from '../../../shared/safety'
-
-interface Checked {
-  mint: string
-  summary?: TokenSummary
-  report?: SafetyReport
-  error?: string
-}
+import { errText, useEngine } from '../lib/engine'
+import { usd, VERDICT_LABEL } from '../../../shared/safety'
+import type { TokenCheckResult } from '../../../shared/engine'
 
 export function TokenCheckPage({ initial }: { initial?: string }) {
-  const { profile } = useAuth()
-  const { rule } = usePipeline()
+  const { online, run: runEngine } = useEngine()
   const [text, setText] = useState(initial ?? '')
   const [busy, setBusy] = useState(false)
-  const [results, setResults] = useState<Checked[]>([])
+  const [results, setResults] = useState<TokenCheckResult[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const mints = extractMints(text)
 
@@ -27,31 +19,17 @@ export function TokenCheckPage({ initial }: { initial?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial])
 
+  // Kontrolü motor yapar (GMGN anahtarı motorda); sonuç ortak önbelleğe de yazılır
   const run = async (targets: string[] = mints) => {
-    if (!profile) return
     setBusy(true)
-    const out: Checked[] = []
-    // Sırayla: GMGN rate limit'ine nazik davranır
-    for (const mint of targets.slice(0, 5)) {
-      const [info, security] = await Promise.all([
-        window.api.gmgn.tokenInfo(profile.id, mint),
-        window.api.gmgn.tokenSecurity(profile.id, mint)
-      ])
-      if (!info.ok || !security.ok) {
-        out.push({ mint, error: (!info.ok && info.error) || (!security.ok && security.error) || 'Bilinmeyen hata' })
-        continue
-      }
-      const report = evaluateSafety(security.data, info.data, rule.thresholds)
-      out.push({ mint, summary: summarizeToken(info.data), report })
-      await supabase.from('safety_checks').insert({
-        mint,
-        result: report.result,
-        reasons: report.items.filter((i) => i.verdict !== 'pass'),
-        raw: { info: info.data, security: security.data }
-      })
+    setError(null)
+    try {
+      setResults((await runEngine('token.check', { mints: targets.slice(0, 5) }, 45_000)).results)
+    } catch (e) {
+      setError(errText(e))
+    } finally {
+      setBusy(false)
     }
-    setResults(out)
-    setBusy(false)
   }
 
   return (
@@ -63,12 +41,14 @@ export function TokenCheckPage({ initial }: { initial?: string }) {
         </label>
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <span className="muted">{mints.length === 0 ? 'Adres bulunamadı' : `${mints.length} adres bulundu`}</span>
-          <button className="btn btn-primary" disabled={busy || mints.length === 0} onClick={() => run()}>
+          <button className="btn btn-primary" disabled={busy || !online || mints.length === 0} onClick={() => run()}>
             {busy ? 'Kontrol ediliyor…' : 'Kontrol et'}
           </button>
         </div>
       </div>
 
+      {!online && <div className="notice">Motor çalışmıyor; kontrol yapılamaz.</div>}
+      {error && <div className="notice error">{error}</div>}
       {results.map((r) => (
         <div key={r.mint} className="card stack">
           <div className="row" style={{ justifyContent: 'space-between' }}>

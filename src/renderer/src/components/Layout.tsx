@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
 import { useOrders } from '../lib/orders'
+import { useEngine } from '../lib/engine'
+import { desktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
 
 export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'orders' | 'rules' | 'settings' | 'users'
@@ -25,9 +27,10 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
   const killSwitch = useKillSwitch()
   const { pendingCount, state, lastError, rule } = usePipeline()
   const { autoNotice } = useOrders()
+  const { online, status } = useEngine()
   const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' })
 
-  useEffect(() => window.api.updater.onStatus(setUpdate), [])
+  useEffect(() => desktop?.updater.onStatus(setUpdate), [])
 
   const toggleKill = async () => {
     const next = !killSwitch
@@ -87,11 +90,15 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
               </span>
             )}
             {update.state === 'ready' && (
-              <button className="btn btn-sm" onClick={() => window.api.updater.install()}>
+              <button className="btn btn-sm" onClick={() => desktop?.updater.install()}>
                 v{update.version} hazır — yeniden başlat
               </button>
             )}
             {update.state === 'downloading' && <span className="faint">Güncelleme indiriliyor %{update.percent}</span>}
+            <span className="row muted" title={status?.version ? `Motor ${status.version} · ${status.host ?? ''}` : undefined}>
+              <span className={`dot ${online ? 'on' : 'off'}`} />
+              {online ? 'Motor çalışıyor' : 'Motor kapalı'}
+            </span>
             <span className="row muted">
               <span className={`dot ${killSwitch ? 'off' : 'on'}`} />
               {killSwitch ? 'İşlemler durduruldu' : 'İşlemler açık'}
@@ -103,6 +110,14 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
             )}
           </div>
         </header>
+        {!online && (
+          <div className="banner">
+            Motor çalışmıyor: sinyaller işlenmiyor, alım-satım yapılamaz.{' '}
+            <button className="link" onClick={() => onNavigate('settings')}>
+              Ayarlar → Motor
+            </button>
+          </div>
+        )}
         <main className="content">{children}</main>
       </div>
     </div>

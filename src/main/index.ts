@@ -1,15 +1,10 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
-import { GmgnClient } from './gmgn/client'
-import { assertSigningKey } from './gmgn/signer'
-import type { GmgnPlan } from './gmgn/limiter'
-import { clearGmgnCredentials, clearXfluxKey, loadGmgnCredentials, loadXfluxKey, saveGmgnCredentials, saveXfluxKey } from './secrets'
 import { setupUpdater } from './updater'
-import { TelegramService } from './telegram/service'
-import { pollMonitors } from './xflux/client'
-import { isLikelyMint } from '../shared/extract'
-import type { BuyRequest, GmgnResult, SellRequest } from '../shared/types'
-import * as trade from './gmgn/trade'
+import { EngineHost } from './engineHost'
+
+// Masaüstü kabuğu: arayüzü gösterir, otomatik güncellemeyi yönetir ve (ayarlıysa) motoru bu
+// bilgisayarda arka planda çalıştırır. Alım-satım, GMGN, Telegram, X mantığı motorda (src/engine).
 
 let win: BrowserWindow | null = null
 
@@ -48,114 +43,24 @@ function createWindow(): void {
   }
 }
 
-function clientFor(userId: string): GmgnClient | null {
-  const creds = loadGmgnCredentials(userId)
-  return creds ? new GmgnClient(creds) : null
-}
-
-const NO_KEY: GmgnResult = { ok: false, status: 0, error: 'GMGN API anahtarı girilmemiş (Ayarlar)' }
-const BAD_MINT: GmgnResult = { ok: false, status: 0, error: 'Geçersiz token adresi' }
-
-function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
+function registerIpc(updater: ReturnType<typeof setupUpdater>, engine: EngineHost): void {
   ipcMain.handle('app:version', () => app.getVersion())
-
-  ipcMain.handle('gmgn:save', (_e, userId: string, apiKey: string, pem: string) => {
-    try {
-      if (!apiKey?.trim()) throw new Error('API anahtarı boş')
-      const normalized = pem.replace(/\\n/g, '\n').trim() + '\n'
-      assertSigningKey(normalized)
-      const prev = loadGmgnCredentials(userId)
-      // Cüzdan API anahtarına bağlı: anahtar değiştiyse seçimi sıfırla
-      const wallet = prev?.apiKey === apiKey.trim() ? prev.wallet : undefined
-      saveGmgnCredentials(userId, { apiKey: apiKey.trim(), privateKeyPem: normalized, plan: prev?.plan, wallet })
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: (e as Error).message }
-    }
-  })
-  ipcMain.handle('gmgn:has', (_e, userId: string) => loadGmgnCredentials(userId) !== null)
-  ipcMain.handle('gmgn:getPlan', (_e, userId: string) => loadGmgnCredentials(userId)?.plan ?? 'free')
-  ipcMain.handle('gmgn:setPlan', (_e, userId: string, plan: string) => {
-    const creds = loadGmgnCredentials(userId)
-    if (!creds || !['free', 'plus', 'pro'].includes(plan)) return false
-    saveGmgnCredentials(userId, { ...creds, plan: plan as GmgnPlan })
-    return true
-  })
-  ipcMain.handle('gmgn:clear', (_e, userId: string) => clearGmgnCredentials(userId))
-
-  ipcMain.handle('gmgn:userInfo', (_e, userId: string) => clientFor(userId)?.userInfo() ?? NO_KEY)
-  ipcMain.handle('gmgn:tokenInfo', (_e, userId: string, mint: string) => {
-    if (!isLikelyMint(mint)) return BAD_MINT
-    return clientFor(userId)?.tokenInfo(mint) ?? NO_KEY
-  })
-  ipcMain.handle('gmgn:tokenSecurity', (_e, userId: string, mint: string) => {
-    if (!isLikelyMint(mint)) return BAD_MINT
-    return clientFor(userId)?.tokenSecurity(mint) ?? NO_KEY
-  })
-
-  ipcMain.handle('trade:wallets', (_e, userId: string) => trade.wallets(userId))
-  ipcMain.handle('trade:selectedWallet', (_e, userId: string) => loadGmgnCredentials(userId)?.wallet ?? null)
-  ipcMain.handle('trade:setWallet', (_e, userId: string, address: string) => {
-    const creds = loadGmgnCredentials(userId)
-    if (!creds || !isLikelyMint(address)) return false
-    saveGmgnCredentials(userId, { ...creds, wallet: address })
-    return true
-  })
-  ipcMain.handle('trade:buy', (_e, userId: string, r: BuyRequest) => trade.buy(userId, r))
-  ipcMain.handle('trade:sell', (_e, userId: string, r: SellRequest) => trade.sell(userId, r))
-  ipcMain.handle('trade:queryOrder', (_e, userId: string, orderId: string) => trade.queryOrder(userId, String(orderId)))
-  ipcMain.handle('trade:holdings', (_e, userId: string) => trade.holdings(userId))
-  ipcMain.handle('trade:tokenPrice', (_e, userId: string, mint: string) => {
-    if (!isLikelyMint(mint)) return BAD_MINT
-    return clientFor(userId)?.tokenPrice(mint) ?? NO_KEY
-  })
-
-  ipcMain.handle('xflux:saveKey', async (_e, userId: string, apiKey: string) => {
-    const key = String(apiKey ?? '').trim()
-    if (!/^xflux_[\w-]{8,}$/.test(key)) return { ok: false, error: 'Anahtar "xflux_" ile başlamalı' }
-    // Kaydetmeden önce dene: yanlış anahtar saklanmasın
-    const test = await pollMonitors(key, 1)
-    if (!test.ok && (test.status === 401 || test.status === 403)) return { ok: false, error: 'XFlux anahtarı reddedildi' }
-    saveXfluxKey(userId, key)
-    return { ok: true }
-  })
-  ipcMain.handle('xflux:hasKey', (_e, userId: string) => loadXfluxKey(userId) !== null)
-  ipcMain.handle('xflux:clearKey', (_e, userId: string) => clearXfluxKey(userId))
-  ipcMain.handle('xflux:poll', (_e, userId: string) => {
-    const key = loadXfluxKey(userId)
-    if (!key) return { ok: false, status: 0, error: 'XFlux anahtarı girilmemiş' }
-    return pollMonitors(key)
-  })
-
-  const telegram = new TelegramService({
-    status: (s) => win?.webContents.send('telegram:status', s),
-    message: (m) => win?.webContents.send('telegram:message', m)
-  })
-  app.on('before-quit', () => {
-    telegram.detach()
-  })
-  ipcMain.handle('telegram:attach', (_e, userId: string) => telegram.attach(userId))
-  ipcMain.handle('telegram:detach', () => telegram.detach())
-  ipcMain.handle('telegram:startLogin', (_e, apiId: number, apiHash: string, phone: string) =>
-    telegram.startLogin(Number(apiId), String(apiHash).trim(), String(phone))
-  )
-  ipcMain.handle('telegram:submitCode', (_e, code: string) => telegram.submitCode(String(code)))
-  ipcMain.handle('telegram:submitPassword', (_e, pw: string) => telegram.submitPassword(String(pw)))
-  ipcMain.handle('telegram:logout', () => telegram.logout())
-  ipcMain.handle('telegram:listChats', async () => {
-    try {
-      return { ok: true, chats: await telegram.listChats() }
-    } catch (e) {
-      return { ok: false, error: (e as Error).message }
-    }
-  })
-  ipcMain.handle('telegram:setWatched', (_e, ids: string[]) => telegram.setWatched(Array.isArray(ids) ? ids.map(String) : []))
-
   ipcMain.handle('updater:check', () => updater.check())
   ipcMain.handle('updater:install', () => updater.install())
+  ipcMain.handle('engine:status', () => engine.status())
+  ipcMain.handle('engine:configure', (_e, patch: { enabled?: unknown; serviceRoleKey?: unknown }) => {
+    try {
+      const clean: { enabled?: boolean; serviceRoleKey?: string } = {}
+      if (typeof patch?.enabled === 'boolean') clean.enabled = patch.enabled
+      if (typeof patch?.serviceRoleKey === 'string') clean.serviceRoleKey = patch.serviceRoleKey
+      return { ok: true, status: engine.configure(clean) }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
 }
 
-// Aynı bilgisayarda uygulama iki kez açılmasın (çift işlem riskini önler)
+// Aynı bilgisayarda uygulama iki kez açılmasın (iki motor süreci olmasın)
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -166,10 +71,22 @@ if (!app.requestSingleInstanceLock()) {
     }
   })
 
+  const engine = new EngineHost(import.meta.env.VITE_SUPABASE_URL as string | undefined)
+
   app.whenReady().then(() => {
     app.setAppUserModelId('com.fakelord.memebot')
-    registerIpc(setupUpdater(() => win))
+    registerIpc(setupUpdater(() => win), engine)
+    engine.start()
     createWindow()
+  })
+
+  let quitting = false
+  app.on('before-quit', (e) => {
+    if (quitting) return
+    // Motora kibarca kapanma fırsatı ver (açık işlemlerin durumu yazılsın)
+    e.preventDefault()
+    quitting = true
+    engine.shutdown().finally(() => app.quit())
   })
 
   app.on('window-all-closed', () => app.quit())

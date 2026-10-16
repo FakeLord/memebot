@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { useOrders, type PositionRow } from '../lib/orders'
-import { useTracker } from '../lib/tracker'
 
 interface Position extends PositionRow {
   entry_price: number | null
@@ -12,10 +11,12 @@ interface Position extends PositionRow {
   close_reason: string | null
   opened_at: string
   closed_at: string | null
+  last_price_usd: number | null
+  price_at: string | null
 }
 
 const COLS =
-  'id, mint, symbol, amount_raw, amount_initial_raw, cost_sol, proceeds_sol, proceeds_estimated, close_reason, is_dry_run, status, entry_price, entry_mcap, opened_at, closed_at'
+  'id, mint, symbol, amount_raw, amount_initial_raw, cost_sol, proceeds_sol, proceeds_estimated, close_reason, is_dry_run, status, entry_price, entry_mcap, opened_at, closed_at, last_price_usd, price_at'
 
 const CLOSE_REASON: Record<string, string> = { manual: 'Elle', gmgn_tpsl: 'GMGN TP/SL', panic: 'Tümünü sat' }
 
@@ -40,7 +41,8 @@ function sol(n: number | null | undefined, sign = false): string {
 export function PositionsPage() {
   const { profile } = useAuth()
   const { sell, sellAll } = useOrders()
-  const { prices, lastError } = useTracker()
+  // Canlı fiyatı motor 15 sn'de bir pozisyon satırına yazar
+  const priceOf = (p: Position) => (p.last_price_usd != null ? Number(p.last_price_usd) : undefined)
   const [open, setOpen] = useState<Position[]>([])
   const [closed, setClosed] = useState<Position[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -101,7 +103,7 @@ export function PositionsPage() {
   // Özet (açık pozisyonlar, aynı modlar birlikte)
   const totals = open.reduce(
     (a, p) => {
-      const v = heldValueSol(p, prices[p.mint]?.priceUsd)
+      const v = heldValueSol(p, priceOf(p))
       if (v === undefined) return a
       return { cost: a.cost + Number(p.cost_sol), now: a.now + v + Number(p.proceeds_sol || 0) }
     },
@@ -115,7 +117,6 @@ export function PositionsPage() {
   return (
     <div className="stack">
       {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
-      {lastError && <div className="notice error">{lastError}</div>}
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="muted">
           Fiyatlar 15 sn'de bir güncellenir. GMGN'de TP/SL tetiklenirse miktar cüzdandan eşitlenir; gelen SOL o anki fiyattan tahmin edilir (*).
@@ -167,7 +168,7 @@ export function PositionsPage() {
                   <td className="mono">{p.entry_price ? `$${Number(p.entry_price).toPrecision(4)}` : '—'}</td>
                   <td className="mono">
                     {(() => {
-                      const pr = prices[p.mint]?.priceUsd
+                      const pr = priceOf(p)
                       if (pr === undefined) return <span className="faint">…</span>
                       const ch = p.entry_price ? pr / Number(p.entry_price) - 1 : undefined
                       return (
@@ -180,7 +181,7 @@ export function PositionsPage() {
                   <td className="mono">{sol(p.cost_sol)}</td>
                   <td className="mono">
                     {(() => {
-                      const v = heldValueSol(p, prices[p.mint]?.priceUsd)
+                      const v = heldValueSol(p, priceOf(p))
                       if (v === undefined || !p.cost_sol) return <span className="faint">—</span>
                       const pnl = v + Number(p.proceeds_sol || 0) - Number(p.cost_sol)
                       return (

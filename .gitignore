@@ -11,3 +11,6 @@ release/
 *.pem
 supabase/.temp/
 supabase/.branches/
+dist-web/
+engine-data/
+.claude/launch.json

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { MemeBotApi, TelegramMessage, TelegramStatus, UpdateStatus } from '../shared/types'
+import type { DesktopApi, UpdateStatus } from '../shared/types'
 
 function subscribe<T>(channel: string, cb: (v: T) => void): () => void {
   const listener = (_e: unknown, v: T) => cb(v)
@@ -7,51 +7,17 @@ function subscribe<T>(channel: string, cb: (v: T) => void): () => void {
   return () => ipcRenderer.removeListener(channel, listener)
 }
 
-const api: MemeBotApi = {
+const api: DesktopApi = {
   appVersion: () => ipcRenderer.invoke('app:version'),
-  gmgn: {
-    saveCredentials: (userId, apiKey, pem) => ipcRenderer.invoke('gmgn:save', userId, apiKey, pem),
-    hasCredentials: (userId) => ipcRenderer.invoke('gmgn:has', userId),
-    getPlan: (userId) => ipcRenderer.invoke('gmgn:getPlan', userId),
-    setPlan: (userId, plan) => ipcRenderer.invoke('gmgn:setPlan', userId, plan),
-    clearCredentials: (userId) => ipcRenderer.invoke('gmgn:clear', userId),
-    userInfo: (userId) => ipcRenderer.invoke('gmgn:userInfo', userId),
-    tokenInfo: (userId, mint) => ipcRenderer.invoke('gmgn:tokenInfo', userId, mint),
-    tokenSecurity: (userId, mint) => ipcRenderer.invoke('gmgn:tokenSecurity', userId, mint)
-  },
-  trade: {
-    wallets: (userId) => ipcRenderer.invoke('trade:wallets', userId),
-    setWallet: (userId, address) => ipcRenderer.invoke('trade:setWallet', userId, address),
-    selectedWallet: (userId) => ipcRenderer.invoke('trade:selectedWallet', userId),
-    buy: (userId, r) => ipcRenderer.invoke('trade:buy', userId, r),
-    sell: (userId, r) => ipcRenderer.invoke('trade:sell', userId, r),
-    queryOrder: (userId, orderId) => ipcRenderer.invoke('trade:queryOrder', userId, orderId),
-    holdings: (userId) => ipcRenderer.invoke('trade:holdings', userId),
-    tokenPrice: (userId, mint) => ipcRenderer.invoke('trade:tokenPrice', userId, mint)
-  },
-  xflux: {
-    saveKey: (userId, apiKey) => ipcRenderer.invoke('xflux:saveKey', userId, apiKey),
-    hasKey: (userId) => ipcRenderer.invoke('xflux:hasKey', userId),
-    clearKey: (userId) => ipcRenderer.invoke('xflux:clearKey', userId),
-    poll: (userId) => ipcRenderer.invoke('xflux:poll', userId)
-  },
-  telegram: {
-    attach: (userId) => ipcRenderer.invoke('telegram:attach', userId),
-    detach: () => ipcRenderer.invoke('telegram:detach'),
-    startLogin: (apiId, apiHash, phone) => ipcRenderer.invoke('telegram:startLogin', apiId, apiHash, phone),
-    submitCode: (code) => ipcRenderer.invoke('telegram:submitCode', code),
-    submitPassword: (pw) => ipcRenderer.invoke('telegram:submitPassword', pw),
-    logout: () => ipcRenderer.invoke('telegram:logout'),
-    listChats: () => ipcRenderer.invoke('telegram:listChats'),
-    setWatched: (ids) => ipcRenderer.invoke('telegram:setWatched', ids),
-    onStatus: (cb) => subscribe<TelegramStatus>('telegram:status', cb),
-    onMessage: (cb) => subscribe<TelegramMessage>('telegram:message', cb)
-  },
   updater: {
     check: () => ipcRenderer.invoke('updater:check'),
     install: () => ipcRenderer.invoke('updater:install'),
     onStatus: (cb) => subscribe<UpdateStatus>('updater:status', cb)
+  },
+  engine: {
+    status: () => ipcRenderer.invoke('engine:status'),
+    configure: (patch) => ipcRenderer.invoke('engine:configure', patch)
   }
 }
 
-contextBridge.exposeInMainWorld('api', api)
+contextBridge.exposeInMainWorld('desktop', api)

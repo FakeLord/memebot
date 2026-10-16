@@ -16,3 +16,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Birim testleri (entegrasyon testleri yerel Supabase ister; CI'da kendiliğinden atlanır)
+      - run: npm test
+      - run: npm run build:web

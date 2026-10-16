@@ -115,49 +115,24 @@ export type XPollResult =
   | { ok: true; monitors: XMonitor[]; quotaRemaining?: number }
   | { ok: false; status: number; error: string; retryAfterSec?: number; quotaRemaining?: number }
 
-export interface MemeBotApi {
+export interface EngineHostStatus {
+  enabled: boolean // bu bilgisayar motoru çalıştırsın mı
+  hasServiceKey: boolean
+  running: boolean
+  logs: string[]
+}
+
+// Masaüstü kabuğunun arayüze açtığı küçük yüzey (tarayıcıda yoktur: window.desktop undefined).
+// Alım-satım, GMGN, Telegram ve X artık motorda; arayüz onlarla Supabase üzerinden konuşur.
+export interface DesktopApi {
   appVersion(): Promise<string>
-  gmgn: {
-    saveCredentials(userId: string, apiKey: string, privateKeyPem: string): Promise<{ ok: boolean; error?: string }>
-    hasCredentials(userId: string): Promise<boolean>
-    getPlan(userId: string): Promise<'free' | 'plus' | 'pro'>
-    setPlan(userId: string, plan: 'free' | 'plus' | 'pro'): Promise<boolean>
-    clearCredentials(userId: string): Promise<void>
-    userInfo(userId: string): Promise<GmgnResult>
-    tokenInfo(userId: string, mint: string): Promise<GmgnResult>
-    tokenSecurity(userId: string, mint: string): Promise<GmgnResult>
-  }
-  trade: {
-    wallets(userId: string): Promise<{ ok: true; wallets: WalletInfo[]; selected?: string } | { ok: false; error: string }>
-    setWallet(userId: string, address: string): Promise<boolean>
-    selectedWallet(userId: string): Promise<string | null>
-    buy(userId: string, r: BuyRequest): Promise<GmgnResult>
-    sell(userId: string, r: SellRequest): Promise<GmgnResult>
-    queryOrder(userId: string, orderId: string): Promise<GmgnResult>
-    holdings(userId: string): Promise<{ ok: true; items: HoldingInfo[]; complete: boolean } | { ok: false; error: string }>
-    tokenPrice(userId: string, mint: string): Promise<GmgnResult>
-  }
-  xflux: {
-    saveKey(userId: string, apiKey: string): Promise<{ ok: boolean; error?: string }>
-    hasKey(userId: string): Promise<boolean>
-    clearKey(userId: string): Promise<void>
-    poll(userId: string): Promise<XPollResult>
-  }
-  telegram: {
-    attach(userId: string): Promise<TelegramStatus>
-    detach(): Promise<void>
-    startLogin(apiId: number, apiHash: string, phone: string): Promise<void>
-    submitCode(code: string): Promise<void>
-    submitPassword(password: string): Promise<void>
-    logout(): Promise<void>
-    listChats(): Promise<{ ok: true; chats: TelegramChat[] } | { ok: false; error: string }>
-    setWatched(chatIds: string[]): Promise<void>
-    onStatus(cb: (s: TelegramStatus) => void): () => void
-    onMessage(cb: (m: TelegramMessage) => void): () => void
-  }
   updater: {
     check(): Promise<void>
     install(): Promise<void>
     onStatus(cb: (s: UpdateStatus) => void): () => void
+  }
+  engine: {
+    status(): Promise<EngineHostStatus>
+    configure(patch: { enabled?: boolean; serviceRoleKey?: string }): Promise<{ ok: true; status: EngineHostStatus } | { ok: false; error: string }>
   }
 }

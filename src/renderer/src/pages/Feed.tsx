@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useTelegram } from '../lib/telegram'
-import { useXSource } from '../lib/xsource'
 import { usePipeline } from '../lib/pipeline'
+import { useEngine } from '../lib/engine'
+import { useSources } from './Sources'
+import type { TelegramStatus } from '../../../shared/types'
 import { extractMints } from '../../../shared/extract'
 import { evaluateSafety, VERDICT_LABEL, type Verdict } from '../../../shared/safety'
 
@@ -37,9 +38,12 @@ function excerpt(text: string | null, mint: string): string {
 
 export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const { profile } = useAuth()
-  const { status, sources } = useTelegram()
-  const x = useXSource()
-  const xWatching = x.sources.filter((s) => s.is_active).length
+  const { me } = useEngine()
+  const status = (me?.telegram && 'state' in me.telegram ? me.telegram : { state: 'needs_setup' }) as TelegramStatus
+  const x = me?.x ?? {}
+  const { sources } = useSources('telegram')
+  const { sources: xSources } = useSources('x')
+  const xWatching = xSources.filter((s) => s.is_active).length
   const [rows, setRows] = useState<SignalRow[]>([])
   const [hits, setHits] = useState<Hits>({})
   const [loaded, setLoaded] = useState(false)
@@ -133,16 +137,10 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
           {status.state === 'connected' ? `Telegram · ${watching} kanal` : 'Telegram bağlı değil'}
         </span>
         <span className="row">
-          <span className={`dot ${x.state === 'polling' && xWatching > 0 ? 'on' : x.state === 'other_machine' ? '' : 'off'}`} />
-          {x.state === 'no_key'
-            ? 'X bağlı değil'
-            : x.state === 'other_machine'
-              ? 'X · başka bilgisayarınızda çalışıyor'
-              : x.state === 'error'
-                ? `X hatası: ${x.error ?? ''}`
-                : `X · ${xWatching} hesap`}
+          <span className={`dot ${x.state === 'polling' && xWatching > 0 ? 'on' : 'off'}`} />
+          {!x.configured ? 'X bağlı değil' : x.state === 'error' ? `X hatası: ${x.error ?? ''}` : `X · ${xWatching} hesap`}
         </span>
-        {(status.state !== 'connected' || x.state === 'no_key') && <span className="faint">Kaynaklar ekranından bağlanın</span>}
+        {(status.state !== 'connected' || !x.configured) && <span className="faint">Kaynaklar ekranından bağlanın</span>}
       </div>
 
       <form className="row" onSubmit={addManual}>
