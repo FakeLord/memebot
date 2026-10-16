@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { canTrade, useAuth } from '../lib/auth'
-import { DEFAULT_RULE, usePipeline, type Rule, type TradeMode } from '../lib/pipeline'
+import { DEFAULT_RULE, usePipeline, type Rule, type RuleLimits, type TradeMode } from '../lib/pipeline'
 import type { SafetyThresholds } from '../../../shared/safety'
+import type { ConditionOrder } from '../../../shared/types'
 
 type NumKey = { [K in keyof SafetyThresholds]: SafetyThresholds[K] extends number ? K : never }[keyof SafetyThresholds]
 type BoolKey = { [K in keyof SafetyThresholds]: SafetyThresholds[K] extends boolean ? K : never }[keyof SafetyThresholds]
@@ -47,6 +48,16 @@ export function RulesPage() {
   const save = async () => {
     const presets = draft.limits.buyPresetsSol.filter((n) => n > 0)
     if (!presets.length) return setMsg({ kind: 'error', text: 'En az bir alım tutarı girin.' })
+    for (const r of draft.tpSl) {
+      const ratio = Number(r.sell_ratio)
+      if (!(ratio >= 1 && ratio <= 100)) return setMsg({ kind: 'error', text: 'TP/SL satış oranı 1–100 olmalı.' })
+      if (r.order_type !== 'loss_stop_trace' && !(Number(r.price_scale) > 0))
+        return setMsg({ kind: 'error', text: 'TP/SL satırlarında fiyat yüzdesi zorunlu.' })
+      if (r.order_type === 'loss_stop' && Number(r.price_scale) >= 100)
+        return setMsg({ kind: 'error', text: "Zarar durdur düşüşü %100'den küçük olmalı." })
+      if (r.order_type.endsWith('_trace') && !(Number(r.drawdown_rate) > 0 && Number(r.drawdown_rate) <= 100))
+        return setMsg({ kind: 'error', text: 'İz süren koşullarda geri çekilme yüzdesi zorunlu.' })
+    }
     const err = await saveRule({ ...draft, limits: { ...draft.limits, buyPresetsSol: presets } })
     setMsg(err ? { kind: 'error', text: err } : { kind: 'ok', text: 'Kurallar kaydedildi; yeni sinyallere hemen uygulanır.' })
   }
@@ -162,6 +173,8 @@ export function RulesPage() {
           </div>
         </div>
 
+        <TradingCard draft={draft} setDraft={setDraft} />
+
         <div className="row">
           <button className="btn btn-primary" onClick={save}>
             Kaydet
@@ -171,6 +184,129 @@ export function RulesPage() {
           </button>
         </div>
       </fieldset>
+    </div>
+  )
+}
+
+const TPSL_TYPES: { value: ConditionOrder['order_type']; label: string; scaleLabel: string }[] = [
+  { value: 'profit_stop', label: 'Kâr al', scaleLabel: 'Giriş fiyatından artış %' },
+  { value: 'loss_stop', label: 'Zarar durdur', scaleLabel: 'Giriş fiyatından düşüş %' },
+  { value: 'profit_stop_trace', label: 'İz süren kâr al', scaleLabel: 'Devreye girme artışı %' },
+  { value: 'loss_stop_trace', label: 'İz süren zarar durdur', scaleLabel: 'Düşüş % (isteğe bağlı)' }
+]
+
+function TradingCard({ draft, setDraft }: { draft: Rule; setDraft: React.Dispatch<React.SetStateAction<Rule>> }) {
+  const l = draft.limits
+  const setL = <K extends keyof RuleLimits>(k: K, v: RuleLimits[K]) => setDraft((d) => ({ ...d, limits: { ...d.limits, [k]: v } }))
+  const setRow = (i: number, patch: Partial<ConditionOrder>) =>
+    setDraft((d) => ({ ...d, tpSl: d.tpSl.map((r, j) => (j === i ? { ...r, ...patch } : r)) }))
+  const numIn = (v: string, min = 0) => Math.max(min, Number(v.replace(',', '.')) || 0)
+
+  const toggleLive = (on: boolean) => {
+    if (on && !confirm('Gerçek mod açılırsa onayladığınız token\'lar için GMGN cüzdanınızdan GERÇEK SOL harcanır. Emin misiniz?')) return
+    setL('liveTrading', on)
+  }
+
+  return (
+    <div className="card stack">
+      <h2>İşlem</h2>
+      <label className="row" style={{ color: 'var(--text)', fontSize: 13 }}>
+        <input type="checkbox" checked={l.liveTrading} onChange={(e) => toggleLive(e.target.checked)} />
+        <b>Gerçek işlem</b>
+        <span className={l.liveTrading ? 'neg' : 'faint'}>
+          {l.liveTrading ? '— onaylar gerçek SOL harcar' : '— kapalı: deneme modu, sadece GMGN fiyat teklifi alınır'}
+        </span>
+      </label>
+
+      <div className="grid-2">
+        <label>
+          Slippage (%)
+          <div className="row">
+            <input
+              type="number"
+              min={1}
+              max={100}
+              disabled={l.slippage === 'auto'}
+              value={l.slippage === 'auto' ? '' : l.slippage}
+              onChange={(e) => setL('slippage', Math.min(100, numIn(e.target.value, 1)))}
+              style={{ flex: 1 }}
+            />
+            <label className="row" style={{ color: 'var(--text)', fontSize: 13 }}>
+              <input type="checkbox" checked={l.slippage === 'auto'} onChange={(e) => setL('slippage', e.target.checked ? 'auto' : 30)} />
+              Otomatik
+            </label>
+          </div>
+        </label>
+        <label className="row" style={{ color: 'var(--text)', fontSize: 13, alignSelf: 'end' }}>
+          <input type="checkbox" checked={l.antiMev} onChange={(e) => setL('antiMev', e.target.checked)} />
+          Anti-MEV koruması (önerilir)
+        </label>
+        <label>
+          Öncelik ücreti (SOL)
+          <input type="number" min={0.00001} step="any" value={l.priorityFeeSol} onChange={(e) => setL('priorityFeeSol', numIn(e.target.value))} />
+        </label>
+        <label>
+          Tip ücreti (SOL)
+          <input type="number" min={0.00001} step="any" value={l.tipFeeSol} onChange={(e) => setL('tipFeeSol', numIn(e.target.value))} />
+        </label>
+        <label>
+          Günlük maks. harcama (SOL)
+          <input type="number" min={0} step="any" value={l.dailyMaxSol} onChange={(e) => setL('dailyMaxSol', numIn(e.target.value))} />
+        </label>
+        <label>
+          Aynı anda maks. açık pozisyon
+          <input type="number" min={1} max={50} value={l.maxOpenPositions} onChange={(e) => setL('maxOpenPositions', Math.round(numIn(e.target.value, 1)))} />
+        </label>
+      </div>
+
+      <h2 style={{ marginTop: 8 }}>TP / SL (alımla birlikte GMGN'de kurulur)</h2>
+      <p className="faint">
+        Bilgisayar kapalıyken de GMGN tarafında çalışır. Satış oranı, tetiklendiği anda elde kalan miktarın yüzdesidir. Deneme modunda kurulmaz.
+      </p>
+      {draft.tpSl.map((row, i) => {
+        const t = TPSL_TYPES.find((x) => x.value === row.order_type) ?? TPSL_TYPES[0]
+        const trace = row.order_type.endsWith('_trace')
+        return (
+          <div key={i} className="row" style={{ alignItems: 'end' }}>
+            <label style={{ flex: 1.3 }}>
+              Tür
+              <select value={row.order_type} onChange={(e) => setRow(i, { order_type: e.target.value as ConditionOrder['order_type'] })}>
+                {TPSL_TYPES.map((x) => (
+                  <option key={x.value} value={x.value}>
+                    {x.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ flex: 1 }}>
+              {t.scaleLabel}
+              <input type="number" min={1} value={row.price_scale ?? ''} onChange={(e) => setRow(i, { price_scale: e.target.value || undefined })} />
+            </label>
+            {trace && (
+              <label style={{ flex: 1 }}>
+                Zirveden geri çekilme %
+                <input type="number" min={1} max={100} value={row.drawdown_rate ?? ''} onChange={(e) => setRow(i, { drawdown_rate: e.target.value || undefined })} />
+              </label>
+            )}
+            <label style={{ flex: 1 }}>
+              Satış oranı %
+              <input type="number" min={1} max={100} value={row.sell_ratio} onChange={(e) => setRow(i, { sell_ratio: e.target.value })} />
+            </label>
+            <button className="btn btn-sm btn-danger" onClick={() => setDraft((d) => ({ ...d, tpSl: d.tpSl.filter((_, j) => j !== i) }))}>
+              Sil
+            </button>
+          </div>
+        )
+      })}
+      <div>
+        <button
+          className="btn btn-sm"
+          disabled={draft.tpSl.length >= 10}
+          onClick={() => setDraft((d) => ({ ...d, tpSl: [...d.tpSl, { order_type: 'profit_stop', side: 'sell', price_scale: '200', sell_ratio: '50' }] }))}
+        >
+          Koşul ekle
+        </button>
+      </div>
     </div>
   )
 }

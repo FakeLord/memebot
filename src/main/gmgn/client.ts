@@ -9,6 +9,7 @@ export interface GmgnCredentials {
   apiKey: string
   privateKeyPem: string
   plan?: GmgnPlan
+  wallet?: string // API anahtarına bağlı, işlem yapılacak SOL cüzdanı
 }
 
 type Method = 'GET' | 'POST'
@@ -108,7 +109,7 @@ export class GmgnClient {
 
   // --- okuma (sadece API key)
   userInfo() {
-    return this.call('GET', '/v1/user/info', {}, null, false, 1, Priority.Safety)
+    return this.call('GET', '/v1/user/info', {}, null, false, 2, Priority.Order)
   }
   tokenInfo(mint: string, chain = 'sol') {
     return this.call('GET', '/v1/token/info', { chain, address: mint }, null, false, 1, Priority.Safety)
@@ -128,7 +129,8 @@ export class GmgnClient {
 
   // --- işlem (API key + imza)
   quote(p: { chain: string; from_address: string; input_token: string; output_token: string; input_amount: string; slippage: number }) {
-    return this.call('GET', '/v1/trade/quote', p, null, true, 10, Priority.Trade)
+    // Resmi istemcide teklif imzasız (authExistRequest) gönderiliyor
+    return this.call('GET', '/v1/trade/quote', p, null, false, 10, Priority.Trade)
   }
   swap(params: SwapParams) {
     return this.call('POST', '/v1/trade/swap', {}, params, true, 10, Priority.Trade, 0)

@@ -6,6 +6,8 @@ import { PipelineProvider } from './lib/pipeline'
 import { KillSwitchProvider } from './lib/killswitch'
 import { ApprovalsPage } from './pages/Approvals'
 import { RulesPage } from './pages/Rules'
+import { OrdersPage } from './pages/Orders'
+import { OrdersProvider } from './lib/orders'
 import { Layout, type Page } from './components/Layout'
 import { LoginPage } from './pages/Login'
 import { FeedPage } from './pages/Feed'
@@ -53,22 +55,25 @@ function Gate() {
     <KillSwitchProvider>
       <TelegramProvider>
         <PipelineProvider>
-          <Layout
-            page={page}
-            onNavigate={(p) => {
-              setCheckTarget(null)
-              setPage(p)
-            }}
-          >
-            {page === 'feed' && <FeedPage onCheck={openCheck} />}
-            {page === 'approvals' && <ApprovalsPage onCheck={openCheck} />}
-            {page === 'sources' && <SourcesPage />}
-            {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
-            {page === 'positions' && <PositionsPage />}
-            {page === 'rules' && <RulesPage />}
-            {page === 'settings' && <SettingsPage />}
-            {page === 'users' && profile.role === 'founder' && <UsersPage />}
-          </Layout>
+          <OrdersProvider>
+            <Layout
+              page={page}
+              onNavigate={(p) => {
+                setCheckTarget(null)
+                setPage(p)
+              }}
+            >
+              {page === 'feed' && <FeedPage onCheck={openCheck} />}
+              {page === 'approvals' && <ApprovalsPage onCheck={openCheck} />}
+              {page === 'sources' && <SourcesPage />}
+              {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
+              {page === 'positions' && <PositionsPage />}
+              {page === 'orders' && <OrdersPage />}
+              {page === 'rules' && <RulesPage />}
+              {page === 'settings' && <SettingsPage />}
+              {page === 'users' && profile.role === 'founder' && <UsersPage />}
+            </Layout>
+          </OrdersProvider>
         </PipelineProvider>
       </TelegramProvider>
     </KillSwitchProvider>

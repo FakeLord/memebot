@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { usePipeline } from '../lib/pipeline'
 import { useKillSwitch } from '../lib/killswitch'
+import { useOrders } from '../lib/orders'
 import { usd, VERDICT_LABEL, type SafetyCheckItem, type TokenSummary, type Verdict } from '../../../shared/safety'
 
 interface Candidate {
@@ -29,6 +30,8 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
   const { profile } = useAuth()
   const { rule } = usePipeline()
   const killSwitch = useKillSwitch()
+  const orders = useOrders()
+  const [info, setInfo] = useState<string | null>(null)
   const [pending, setPending] = useState<Candidate[]>([])
   const [recent, setRecent] = useState<Candidate[]>([])
   const [now, setNow] = useState(Date.now())
@@ -68,6 +71,7 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
   const decide = async (c: Candidate, status: 'approved' | 'rejected', amountSol?: number) => {
     setBusy(c.id)
     setError(null)
+    setInfo(null)
     // Sadece hâlâ bekleyen adayı güncelle: çift tıklama / iki bilgisayar tek karar üretir
     const { data, error } = await supabase
       .from('candidates')
@@ -75,11 +79,24 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
       .eq('id', c.id)
       .eq('status', 'pending')
       .select('id')
-    setBusy(null)
-    if (error) return setError(error.message)
-    if (!data?.length) return setError('Bu aday artık beklemede değil (süresi dolmuş ya da başka yerden karar verilmiş).')
+    if (error) {
+      setBusy(null)
+      return setError(error.message)
+    }
+    if (!data?.length) {
+      setBusy(null)
+      return setError('Bu aday artık beklemede değil (süresi dolmuş ya da başka yerden karar verilmiş).')
+    }
     await supabase.from('audit_log').insert({ action: `candidate.${status}`, detail: { mint: c.mint, amount_sol: amountSol } })
+    if (status === 'approved' && amountSol) {
+      const err = await orders.buy({ mint: c.mint, amountSol, candidateId: c.id, symbol: c.summary.symbol })
+      if (err) setError(`Alım yapılamadı: ${err}`)
+      else setInfo(`${c.summary.symbol ?? 'Token'} için ${amountSol} SOL ${live ? 'alım emri gönderildi' : 'deneme alımı yapıldı'} — Pozisyonlar/Emirler ekranından izleyin.`)
+    }
+    setBusy(null)
   }
+
+  const live = rule.limits.liveTrading
 
   const visible = pending.filter((c) => new Date(c.expires_at).getTime() > now)
 
@@ -87,10 +104,12 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
     <div className="stack">
       <div className="notice">
         Mod: <b>{rule.mode === 'watch' ? 'Sadece izle' : rule.mode === 'manual' ? 'Manuel onay' : 'Otomatik'}</b> · Güvenlikten geçen sinyaller
-        burada {rule.limits.approvalTtlMin} dk bekler. Bu sürümde onay sadece kaydedilir; <b>alım Faz 4'te bağlanacak.</b>
+        burada {rule.limits.approvalTtlMin} dk bekler. İşlem:{' '}
+        {live ? <b className="neg">GERÇEK — onay SOL harcar</b> : <b>Deneme modu — para harcanmaz</b>}
       </div>
       {killSwitch && <div className="notice error">İşlemler founder tarafından durduruldu; onay verilemez.</div>}
       {error && <div className="notice error">{error}</div>}
+      {info && <div className="notice ok">{info}</div>}
 
       {visible.length === 0 ? (
         <div className="empty">Onay bekleyen token yok.</div>
@@ -138,7 +157,7 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
                       disabled={!trader || killSwitch || busy === c.id}
                       onClick={() => decide(c, 'approved', a)}
                     >
-                      Onayla · {a} SOL
+                      {live ? 'Al' : 'Dene'} · {a} SOL
                     </button>
                   ))}
                 <button className="btn btn-sm" disabled={!trader || busy === c.id} onClick={() => decide(c, 'rejected')}>

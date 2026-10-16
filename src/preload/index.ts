@@ -19,6 +19,14 @@ const api: MemeBotApi = {
     tokenInfo: (userId, mint) => ipcRenderer.invoke('gmgn:tokenInfo', userId, mint),
     tokenSecurity: (userId, mint) => ipcRenderer.invoke('gmgn:tokenSecurity', userId, mint)
   },
+  trade: {
+    wallets: (userId) => ipcRenderer.invoke('trade:wallets', userId),
+    setWallet: (userId, address) => ipcRenderer.invoke('trade:setWallet', userId, address),
+    selectedWallet: (userId) => ipcRenderer.invoke('trade:selectedWallet', userId),
+    buy: (userId, r) => ipcRenderer.invoke('trade:buy', userId, r),
+    sell: (userId, r) => ipcRenderer.invoke('trade:sell', userId, r),
+    queryOrder: (userId, orderId) => ipcRenderer.invoke('trade:queryOrder', userId, orderId)
+  },
   telegram: {
     attach: (userId) => ipcRenderer.invoke('telegram:attach', userId),
     detach: () => ipcRenderer.invoke('telegram:detach'),

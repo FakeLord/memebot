@@ -7,7 +7,8 @@ import { clearGmgnCredentials, loadGmgnCredentials, saveGmgnCredentials } from '
 import { setupUpdater } from './updater'
 import { TelegramService } from './telegram/service'
 import { isLikelyMint } from '../shared/extract'
-import type { GmgnResult } from '../shared/types'
+import type { BuyRequest, GmgnResult, SellRequest } from '../shared/types'
+import * as trade from './gmgn/trade'
 
 let win: BrowserWindow | null = null
 
@@ -62,8 +63,10 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
       if (!apiKey?.trim()) throw new Error('API anahtarı boş')
       const normalized = pem.replace(/\\n/g, '\n').trim() + '\n'
       assertSigningKey(normalized)
-      const plan = loadGmgnCredentials(userId)?.plan
-      saveGmgnCredentials(userId, { apiKey: apiKey.trim(), privateKeyPem: normalized, plan })
+      const prev = loadGmgnCredentials(userId)
+      // Cüzdan API anahtarına bağlı: anahtar değiştiyse seçimi sıfırla
+      const wallet = prev?.apiKey === apiKey.trim() ? prev.wallet : undefined
+      saveGmgnCredentials(userId, { apiKey: apiKey.trim(), privateKeyPem: normalized, plan: prev?.plan, wallet })
       return { ok: true }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
@@ -88,6 +91,18 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
     if (!isLikelyMint(mint)) return BAD_MINT
     return clientFor(userId)?.tokenSecurity(mint) ?? NO_KEY
   })
+
+  ipcMain.handle('trade:wallets', (_e, userId: string) => trade.wallets(userId))
+  ipcMain.handle('trade:selectedWallet', (_e, userId: string) => loadGmgnCredentials(userId)?.wallet ?? null)
+  ipcMain.handle('trade:setWallet', (_e, userId: string, address: string) => {
+    const creds = loadGmgnCredentials(userId)
+    if (!creds || !isLikelyMint(address)) return false
+    saveGmgnCredentials(userId, { ...creds, wallet: address })
+    return true
+  })
+  ipcMain.handle('trade:buy', (_e, userId: string, r: BuyRequest) => trade.buy(userId, r))
+  ipcMain.handle('trade:sell', (_e, userId: string, r: SellRequest) => trade.sell(userId, r))
+  ipcMain.handle('trade:queryOrder', (_e, userId: string, orderId: string) => trade.queryOrder(userId, String(orderId)))
 
   const telegram = new TelegramService({
     status: (s) => win?.webContents.send('telegram:status', s),

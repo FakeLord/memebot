@@ -2,9 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { supabase } from './supabase'
 import { useAuth } from './auth'
 import { evaluateSafety, summarizeToken, withDefaults, type SafetyThresholds } from '../../../shared/safety'
+import type { ConditionOrder } from '../../../shared/types'
 
 // Karar motoru: yeni sinyal → GMGN güvenlik kontrolü → kullanıcının kuralına göre onay adayı.
-// Bu fazda alım yapılmaz; onaylanan adaylar Faz 4'te emre dönüşecek.
+// Onaylanan aday emir motorunda (lib/orders) alıma dönüşür.
 
 export type TradeMode = 'watch' | 'manual' | 'auto'
 
@@ -13,22 +14,43 @@ export interface RuleLimits {
   approvalTtlMin: number // onay bekleme süresi
   buyPresetsSol: number[]
   maxBuySol: number
+  // --- işlem (Faz 4)
+  liveTrading: boolean // false = deneme modu: sadece GMGN teklifi alınır, para harcanmaz
+  slippage: number | 'auto'
+  priorityFeeSol: number
+  tipFeeSol: number
+  antiMev: boolean
+  dailyMaxSol: number // gerçek modda gün içinde harcanabilecek toplam SOL
+  maxOpenPositions: number
 }
 
 export interface Rule {
   mode: TradeMode
   thresholds: SafetyThresholds
   limits: RuleLimits
+  tpSl: ConditionOrder[] // alımla birlikte GMGN'de kurulan TP/SL
 }
 
 export const DEFAULT_LIMITS: RuleLimits = {
   allowWarn: false,
   approvalTtlMin: 10,
   buyPresetsSol: [0.1, 0.25, 0.5],
-  maxBuySol: 1
+  maxBuySol: 1,
+  liveTrading: false,
+  slippage: 30,
+  priorityFeeSol: 0.0005,
+  tipFeeSol: 0.001,
+  antiMev: true,
+  dailyMaxSol: 2,
+  maxOpenPositions: 5
 }
 
-export const DEFAULT_RULE: Rule = { mode: 'manual', thresholds: withDefaults(null), limits: DEFAULT_LIMITS }
+export const DEFAULT_TPSL: ConditionOrder[] = [
+  { order_type: 'profit_stop', side: 'sell', price_scale: '100', sell_ratio: '50' },
+  { order_type: 'loss_stop', side: 'sell', price_scale: '40', sell_ratio: '100' }
+]
+
+export const DEFAULT_RULE: Rule = { mode: 'manual', thresholds: withDefaults(null), limits: DEFAULT_LIMITS, tpSl: DEFAULT_TPSL }
 
 const CACHE_MS = 3 * 60_000
 
@@ -62,7 +84,7 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
     if (!profile) return
     supabase
       .from('rules')
-      .select('mode, thresholds, limits')
+      .select('mode, thresholds, limits, tp_sl_template')
       .eq('user_id', profile.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -70,7 +92,8 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
         setRule({
           mode: data.mode as TradeMode,
           thresholds: withDefaults(data.thresholds as Partial<SafetyThresholds>),
-          limits: { ...DEFAULT_LIMITS, ...((data.limits as Partial<RuleLimits>) ?? {}) }
+          limits: { ...DEFAULT_LIMITS, ...((data.limits as Partial<RuleLimits>) ?? {}) },
+          tpSl: Array.isArray(data.tp_sl_template) && data.tp_sl_template.length ? (data.tp_sl_template as ConditionOrder[]) : DEFAULT_TPSL
         })
       })
   }, [profile?.id])
@@ -81,12 +104,19 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase
         .from('rules')
         .upsert(
-          { user_id: profile.id, mode: r.mode, thresholds: r.thresholds, limits: r.limits, updated_at: new Date().toISOString() },
+          {
+            user_id: profile.id,
+            mode: r.mode,
+            thresholds: r.thresholds,
+            limits: r.limits,
+            tp_sl_template: r.tpSl,
+            updated_at: new Date().toISOString()
+          },
           { onConflict: 'user_id' }
         )
       if (error) return error.message
       setRule(r)
-      await supabase.from('audit_log').insert({ action: 'rule.update', detail: { mode: r.mode } })
+      await supabase.from('audit_log').insert({ action: 'rule.update', detail: { mode: r.mode, live: r.limits.liveTrading } })
       return null
     },
     [profile?.id]

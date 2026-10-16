@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
+import type { WalletInfo } from '../../../shared/types'
 
 type Plan = 'free' | 'plus' | 'pro'
 
@@ -103,6 +104,8 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {hasKey && <WalletCard userId={userId} />}
+
       <div className="card stack">
         <h2>Uygulama</h2>
         <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -113,6 +116,65 @@ export function SettingsPage() {
             Güncellemeleri denetle
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// İşlemler GMGN'de API anahtarına bağlı cüzdan üzerinden yapılır; burada hangisi kullanılacak seçilir.
+function WalletCard({ userId }: { userId: string }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const [wallets, setWallets] = useState<WalletInfo[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    window.api.trade.selectedWallet(userId).then(setSelected)
+  }, [userId])
+
+  const load = async () => {
+    setBusy(true)
+    setError(null)
+    const r = await window.api.trade.wallets(userId)
+    setBusy(false)
+    if (!r.ok) return setError(r.error)
+    setWallets(r.wallets)
+    if (!r.wallets.length) setError('Bu API anahtarına bağlı Solana cüzdanı bulunamadı. gmgn.ai/ai sayfasından cüzdan bağlayın.')
+  }
+
+  const choose = async (address: string) => {
+    if (await window.api.trade.setWallet(userId, address)) setSelected(address)
+  }
+
+  return (
+    <div className="card stack">
+      <h2>İşlem cüzdanı</h2>
+      <div className="row">
+        <span className={`dot ${selected ? 'on' : 'off'}`} />
+        {selected ? <span className="mono">{selected}</span> : <span>Seçilmedi — alım-satım yapılamaz</span>}
+      </div>
+      {error && <div className="notice error">{error}</div>}
+      {wallets && wallets.length > 0 && (
+        <table>
+          <tbody>
+            {wallets.map((w) => (
+              <tr key={w.address}>
+                <td className="mono">{w.address}</td>
+                <td className="mono muted">{w.balance !== undefined ? w.balance : ''}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className={`btn btn-sm ${w.address === selected ? '' : 'btn-primary'}`} disabled={w.address === selected} onClick={() => choose(w.address)}>
+                    {w.address === selected ? 'Seçili' : 'Seç'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div>
+        <button className="btn btn-sm" disabled={busy} onClick={load}>
+          {busy ? 'Getiriliyor…' : "GMGN'den cüzdanları getir"}
+        </button>
       </div>
     </div>
   )

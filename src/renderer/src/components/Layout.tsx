@@ -5,7 +5,7 @@ import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
 import type { UpdateStatus } from '../../../shared/types'
 
-export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'rules' | 'settings' | 'users'
+export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'orders' | 'rules' | 'settings' | 'users'
 
 const TITLES: Record<Page, string> = {
   feed: 'Canlı Akış',
@@ -13,6 +13,7 @@ const TITLES: Record<Page, string> = {
   sources: 'Kaynaklar',
   token: 'Token Kontrol',
   positions: 'Pozisyonlar',
+  orders: 'Emirler',
   rules: 'Kurallar',
   settings: 'Ayarlar',
   users: 'Kullanıcılar'
@@ -35,7 +36,7 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
     if (!error) await supabase.from('audit_log').insert({ action: next ? 'kill_switch.on' : 'kill_switch.off' })
   }
 
-  const items: Page[] = ['feed', 'approvals', 'sources', 'token', 'positions', 'rules', 'settings']
+  const items: Page[] = ['feed', 'approvals', 'positions', 'orders', 'sources', 'token', 'rules', 'settings']
   if (profile?.role === 'founder') items.push('users')
 
   return (

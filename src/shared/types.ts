@@ -36,6 +36,31 @@ export interface SwapParams {
   sell_ratio_type?: 'buy_amount' | 'hold_amount'
 }
 
+export interface WalletInfo {
+  address: string
+  balance?: number
+}
+
+export interface ExecParams {
+  dryRun: boolean
+  slippage: number | 'auto' // yüzde (30 = %30)
+  priorityFeeSol: number
+  tipFeeSol: number
+  antiMev: boolean
+}
+
+export interface BuyRequest extends ExecParams {
+  mint: string
+  amountSol: number
+  conditionOrders: ConditionOrder[]
+}
+
+export interface SellRequest extends ExecParams {
+  mint: string
+  percent: number // 1–100
+  amountRaw?: string // deneme modunda teklif için eldeki miktar
+}
+
 export type UpdateStatus =
   | { state: 'idle' }
   | { state: 'checking' }
@@ -79,6 +104,14 @@ export interface MemeBotApi {
     userInfo(userId: string): Promise<GmgnResult>
     tokenInfo(userId: string, mint: string): Promise<GmgnResult>
     tokenSecurity(userId: string, mint: string): Promise<GmgnResult>
+  }
+  trade: {
+    wallets(userId: string): Promise<{ ok: true; wallets: WalletInfo[]; selected?: string } | { ok: false; error: string }>
+    setWallet(userId: string, address: string): Promise<boolean>
+    selectedWallet(userId: string): Promise<string | null>
+    buy(userId: string, r: BuyRequest): Promise<GmgnResult>
+    sell(userId: string, r: SellRequest): Promise<GmgnResult>
+    queryOrder(userId: string, orderId: string): Promise<GmgnResult>
   }
   telegram: {
     attach(userId: string): Promise<TelegramStatus>
