@@ -228,16 +228,35 @@ export class TelegramService {
 
   private async onAuthorized(client: TelegramClient) {
     const me = (await client.getMe()) as Api.User
-    const handle = (event: NewMessageEvent | EditedMessageEvent, edited: boolean) => {
+    const handle = async (event: NewMessageEvent | EditedMessageEvent, edited: boolean) => {
       const msg = event.message
       const chatId = msg.chatId?.toString()
       if (!chatId || !this.watched.has(chatId)) return
       const text = messageText(msg)
-      if (!text) return
-      this.emit.message({ chatId, msgId: msg.id, text, date: msg.date, receivedAt: Date.now(), edited })
+      if (!text && !msg.photo) return
+      const base: TelegramMessage = {
+        chatId,
+        msgId: msg.id,
+        text,
+        body: msg.message ?? '',
+        date: msg.date,
+        receivedAt: Date.now(),
+        edited,
+        channelUsername: (msg.chat as { username?: string } | undefined)?.username
+      }
+      if (msg.replyTo) {
+        const reply = await msg.getReplyMessage().catch(() => undefined)
+        if (reply?.message) base.replyText = reply.message.slice(0, 500)
+      }
+      // Sinyal gecikmesin: mesaj hemen iletilir, görsel önizlemesi inince ikinci kez (sadece görsel)
+      this.emit.message(base)
+      if (msg.photo && !edited) {
+        const photo = await client.downloadMedia(msg, { thumb: 1 }).catch(() => undefined)
+        if (photo instanceof Uint8Array && photo.length > 0 && photo.length < 2_000_000) this.emit.message({ ...base, photo, mediaOnly: true })
+      }
     }
-    client.addEventHandler((e: NewMessageEvent) => handle(e, false), new NewMessage({}))
-    client.addEventHandler((e: EditedMessageEvent) => handle(e, true), new EditedMessage({}))
+    client.addEventHandler((e: NewMessageEvent) => void handle(e, false).catch(() => undefined), new NewMessage({}))
+    client.addEventHandler((e: EditedMessageEvent) => void handle(e, true).catch(() => undefined), new EditedMessage({}))
     this.setStatus({ state: 'connected', me: me.username ? `@${me.username}` : [me.firstName, me.lastName].filter(Boolean).join(' ') })
   }
 }

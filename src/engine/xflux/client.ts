@@ -1,5 +1,6 @@
 import { request } from 'node:https'
 import type { XHit, XMonitor, XPollResult } from '../../shared/types'
+import type { FeedAuthor, FeedMedia } from '../../shared/feed'
 
 // XFlux (X/Twitter veri servisi) — https://www.xfluxapi.com/docs/api
 // İzleyiciler (monitor) XFlux panelinden kurulur; API ile sadece okunur.
@@ -68,6 +69,46 @@ function hitText(h: Obj): string {
   return [...new Set(parts)].join('\n')
 }
 
+// Gönderi yazarı: X API v1 (user.screen_name) ve v2 (author.username) biçimlerini dener
+function parseAuthor(o: unknown): FeedAuthor | undefined {
+  if (!isObj(o)) return undefined
+  const u = [o.user, o.author, o.core && isObj(o.core) ? (o.core as Obj).user : undefined].find(isObj) as Obj | undefined
+  if (!u) return undefined
+  const legacy = isObj(u.legacy) ? (u.legacy as Obj) : u
+  const followers = Number(legacy.followers_count ?? u.followers_count ?? (isObj(u.public_metrics) ? (u.public_metrics as Obj).followers_count : undefined))
+  const avatar = str(legacy.profile_image_url_https, u.profile_image_url_https, u.profile_image_url, u.avatar)
+  const a: FeedAuthor = {
+    name: str(legacy.name, u.name, u.display_name),
+    handle: str(legacy.screen_name, u.screen_name, u.username, u.handle)?.replace(/^@/, ''),
+    // Profil fotoğrafının büyük sürümü (X "_normal" = 48 px)
+    avatar: avatar?.replace('_normal.', '_bigger.'),
+    verified: Boolean(u.verified ?? u.is_blue_verified ?? legacy.verified),
+    followers: Number.isFinite(followers) ? followers : undefined
+  }
+  return a.name || a.handle ? a : undefined
+}
+
+function parseMedia(t: Obj): FeedMedia[] {
+  const lists = [
+    isObj(t.extended_entities) ? (t.extended_entities as Obj).media : undefined,
+    isObj(t.entities) ? (t.entities as Obj).media : undefined,
+    t.media,
+    t.attachments && isObj(t.attachments) ? (t.attachments as Obj).media : undefined
+  ]
+  const out: FeedMedia[] = []
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue
+    for (const m of list) {
+      if (!isObj(m)) continue
+      const url = str(m.media_url_https, m.media_url, m.preview_image_url, m.url)
+      if (!url || !/^https:\/\//.test(url) || out.some((x) => x.url === url)) continue
+      out.push({ type: /video|gif/.test(String(m.type ?? '')) ? 'video' : 'photo', url })
+    }
+    if (out.length) break
+  }
+  return out.slice(0, 4)
+}
+
 export function parseHit(raw: unknown): XHit | null {
   if (!isObj(raw)) return null
   const t = isObj(raw.tweet) ? raw.tweet : raw
@@ -76,10 +117,25 @@ export function parseHit(raw: unknown): XHit | null {
   if (!id) return null
   const created = str(t.created_at, raw.created_at, raw.detected_at, raw.createdAt)
   const ts = created ? Date.parse(created) : NaN
+  const legacy = isObj(t.legacy) ? (t.legacy as Obj) : t
+  const quoted = [t.quoted_status, t.quoted_tweet, t.quote].find(isObj) as Obj | undefined
+  const retweeted = [t.retweeted_status, t.retweeted_tweet].find(isObj) as Obj | undefined
+  const replyTo = str(legacy.in_reply_to_screen_name, t.in_reply_to_screen_name, t.in_reply_to_username)
+  const kind: XHit['kind'] = retweeted ? 'repost' : quoted ? 'quote' : replyTo || t.is_reply === true ? 'reply' : 'post'
+  const refSrc = retweeted ?? quoted
   return {
     tweetId: id,
     text: hitText(raw),
-    createdAt: Number.isFinite(ts) ? ts : undefined
+    body: str(legacy.full_text, t.full_text, legacy.text, t.text, raw.text, raw.content),
+    createdAt: Number.isFinite(ts) ? ts : undefined,
+    author: parseAuthor(t) ?? parseAuthor(raw),
+    media: parseMedia(legacy).length ? parseMedia(legacy) : parseMedia(t),
+    kind,
+    ref: refSrc
+      ? { author: parseAuthor(refSrc), text: str(refSrc.full_text, refSrc.text) }
+      : replyTo
+        ? { author: { handle: replyTo } }
+        : undefined
   }
 }
 

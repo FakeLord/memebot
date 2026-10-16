@@ -148,6 +148,11 @@ export class FakeGmgn implements GmgnApi {
       report: { input_amount: '50000000', output_amount: '75000000000', price_usd: 0.0001, output_token_decimals: 6 }
     })
   }
+  searchResults = new Map<string, { address: string; name: string; symbol: string; price: string; mcp: string }[]>()
+  async marketSearch(q: string) {
+    this.calls.push({ fn: 'marketSearch', args: q })
+    return this.ok({ coins: this.searchResults.get(q.toLowerCase()) ?? [], wallets: [] })
+  }
   async walletHoldings() {
     return this.ok({ list: this.holdingsList, next: null })
   }

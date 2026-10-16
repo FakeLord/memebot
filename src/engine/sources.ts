@@ -1,11 +1,12 @@
 import type { EngineContext } from './context'
+import type { FeedWriter } from './feed'
 import { TelegramService } from './telegram/service'
 import { pollMonitors } from './xflux/client'
 import { extractMints } from '../shared/extract'
-import type { TelegramMessage, XMonitor, XPollResult } from '../shared/types'
+import type { TelegramMessage, XHit, XMonitor, XPollResult } from '../shared/types'
 
 // Sinyal kaynakları: her kullanıcının Telegram oturumu ve XFlux izleyicileri motorda çalışır.
-// Mesajdaki mint adresleri engine_record_signal ile yazılır; karar motoru oradan alır.
+// Her gönderi akışa kart olarak yazılır; içindeki mint adresleri engine_record_signal ile sinyal olur.
 
 interface SourceRow {
   id: string
@@ -23,6 +24,7 @@ export class SourceHub {
 
   constructor(
     private readonly ctx: EngineContext,
+    private readonly feed: FeedWriter,
     private readonly xPoll: (apiKey: string, hitLimit?: number) => Promise<XPollResult> = pollMonitors
   ) {}
 
@@ -79,7 +81,43 @@ export class SourceHub {
   private async onTelegram(userId: string, m: TelegramMessage): Promise<void> {
     const source = this.active(userId, 'telegram').find((s) => s.chat_id === m.chatId)
     if (!source) return
-    await this.record(userId, source.id, String(m.msgId), m.text, new Date(m.date * 1000))
+    const externalId = `${m.chatId}:${m.msgId}`
+    if (m.mediaOnly) {
+      if (m.photo) await this.feed.attachPhoto(userId, 'telegram', externalId, m.photo)
+      return
+    }
+    // Önce sinyal (hız), sonra kart
+    if (m.text) await this.record(userId, source.id, String(m.msgId), m.text, new Date(m.date * 1000))
+    await this.feed.ingest(userId, source.id, {
+      platform: 'telegram',
+      externalId,
+      author: { name: source.title, handle: m.channelUsername },
+      body: m.body,
+      scanText: m.text,
+      kind: m.replyText ? 'reply' : 'post',
+      ref: m.replyText ? { text: m.replyText } : undefined,
+      url: m.channelUsername ? `https://t.me/${m.channelUsername}/${m.msgId}` : undefined,
+      postedAt: new Date(m.date * 1000),
+      edited: m.edited
+    })
+  }
+
+  /** X gönderisi: sinyal + kart. */
+  async onX(userId: string, sourceId: string, h: XHit, monitorUsername: string): Promise<void> {
+    await this.record(userId, sourceId, h.tweetId, h.text, new Date(h.createdAt ?? Date.now()))
+    const handle = h.author?.handle ?? monitorUsername
+    await this.feed.ingest(userId, sourceId, {
+      platform: 'x',
+      externalId: h.tweetId,
+      author: { handle, ...h.author },
+      body: h.body ?? h.text,
+      scanText: h.text,
+      media: h.media,
+      kind: h.kind,
+      ref: h.ref,
+      url: `https://x.com/${handle}/status/${h.tweetId}`,
+      postedAt: h.createdAt ? new Date(h.createdAt) : undefined
+    })
   }
 
   async record(userId: string, sourceId: string, msgId: string, text: string, at: Date, limit = 5): Promise<number> {
@@ -215,7 +253,7 @@ class XPoller {
       if (this.firstPoll && (age === undefined || age > FRESH_ON_START_MS)) continue
       if (age !== undefined && age > STALE_MS) continue
       if (!source) continue
-      await this.hub.record(this.userId, source.id, h.tweetId, h.text, new Date(h.createdAt ?? Date.now()))
+      await this.hub.onX(this.userId, source.id, h, m.username)
     }
   }
 }

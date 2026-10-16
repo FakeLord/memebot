@@ -7,6 +7,7 @@ import { Pipeline } from './pipeline'
 import { Tracker } from './tracker'
 import { SourceHub } from './sources'
 import { Commands } from './commands'
+import { FeedWriter } from './feed'
 import { lastLatencyMs } from './gmgn/client'
 import type { RuleRow } from '../shared/rules'
 import type { XPollResult } from '../shared/types'
@@ -29,6 +30,7 @@ export class Engine {
   readonly tracker: Tracker
   readonly sources: SourceHub
   readonly commands: Commands
+  readonly feed: FeedWriter
   readonly instanceId: string
   private active = false
   private stopped = false
@@ -42,7 +44,8 @@ export class Engine {
     this.orders = new OrderEngine(this.ctx)
     this.pipeline = new Pipeline(this.ctx, this.orders)
     this.tracker = new Tracker(this.ctx)
-    this.sources = new SourceHub(this.ctx, o.xPoll)
+    this.feed = new FeedWriter(this.ctx)
+    this.sources = new SourceHub(this.ctx, this.feed, o.xPoll)
     this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, xPoll: o.xPoll })
   }
 
@@ -116,6 +119,7 @@ export class Engine {
     every(this.ctx.pollMs, () => this.pipeline.processPending())
     every(this.ctx.trackerMs, () => this.tracker.tick())
     every(30_000, () => this.pipeline.expireCandidates())
+    every(3600_000, async () => void (await this.feed.cleanup()))
     every(30_000, async () => {
       await users.load()
       await this.sources.reloadSources()

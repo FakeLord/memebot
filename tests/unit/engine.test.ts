@@ -93,7 +93,7 @@ describe('XFlux ayrıştırma', () => {
 
   it('izleyici listesi farklı sarmalayıcılarla gelebilir', () => {
     const m = parseMonitors({ data: { monitors: [{ id: 'm1', username: '@elon', hits: [{ tweet_id: '123', text: 'x' }] }] } })
-    expect(m).toEqual([{ id: 'm1', username: 'elon', hits: [{ tweetId: '123', text: 'x', createdAt: undefined }] }])
+    expect(m).toMatchObject([{ id: 'm1', username: 'elon', hits: [{ tweetId: '123', text: 'x', body: 'x', kind: 'post' }] }])
   })
 
   it('kota azaldıkça yoklama aralığı uzar', () => {

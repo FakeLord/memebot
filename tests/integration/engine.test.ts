@@ -375,7 +375,48 @@ d('MemeBot Engine (yerel Supabase)', () => {
     // Yoklama aralığı kotaya göre (en az 3 sn)
     const sig = await waitFor(async () => (await dev.client.from('signals').select('msg_id::text, mint').eq('mint', m).maybeSingle()).data, 25_000)
     expect(String(sig.msg_id)).toBe('1900000000000000777')
+
+    // Aynı gönderi akışa kart olarak da düştü
+    const card = await waitFor(async () => (await dev.client.from('feed_items').select('*').eq('external_id', '1900000000000000777').maybeSingle()).data)
+    expect(card.platform).toBe('x')
+    expect(card.mints).toEqual([m])
+    expect(card.url).toBe('https://x.com/elon/status/1900000000000000777')
     await runCommand(dev.client, dev.id, 'xflux.clear', {})
+  })
+
+  it('akış kartı: öneri ızgarası GMGN aramasıyla dolar; kullanıcı sadece gizle/sabitle yapabilir', async () => {
+    gmgn.searchResults.set('dog', [{ address: mint(), name: 'Dog', symbol: 'DOG', price: '0.001', mcp: '50000' }])
+    const id = await engine.feed.ingest(dev.id, null, {
+      platform: 'x',
+      externalId: `t-${tag}`,
+      author: { name: 'Test', handle: 'test' },
+      body: 'Yeni $DOG çıktı "Big Dog"'
+    })
+    const card = await waitFor(async () => {
+      const { data } = await dev.client.from('feed_items').select('*').eq('id', id!).single()
+      return data?.suggestions ? data : null
+    })
+    expect(card.tickers).toEqual(['DOG'])
+    expect(card.suggestions[0].symbol).toBe('DOG')
+    expect(card.suggestions[0].mcapUsd).toBe(50000)
+
+    const pin = await dev.client.from('feed_items').update({ pinned: true }).eq('id', id!).select('pinned')
+    expect(pin.data?.[0]?.pinned).toBe(true)
+    const bad = await dev.client.from('feed_items').update({ text: 'değiştirildi' }).eq('id', id!)
+    expect(bad.error).toBeTruthy()
+    const other = await asst.client.from('feed_items').select('id').eq('id', id!)
+    expect(other.data ?? []).toEqual([])
+
+    // Telegram görsel önizlemesi depoya yüklenir ve karta eklenir; 7 günlük temizlik görseli de siler
+    const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 0xff, 0xd9])
+    await engine.feed.attachPhoto(dev.id, 'x', `t-${tag}`, jpeg)
+    const { data: withPhoto } = await dev.client.from('feed_items').select('media').eq('id', id!).single()
+    const url = withPhoto!.media[0].url as string
+    expect(url).toContain('/feed-media/')
+    expect((await fetch(url)).status).toBe(200)
+    await admin.from('feed_items').update({ received_at: new Date(Date.now() - 8 * 24 * 3600_000).toISOString() }).eq('id', id!)
+    expect(await engine.feed.cleanup()).toBeGreaterThan(0)
+    expect((await fetch(url)).status).not.toBe(200)
   })
 
   it('founder herkesin motor durumunu okur, asistan sadece kendininkini', async () => {

@@ -5,7 +5,7 @@ import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
 import { useOrders } from '../lib/orders'
 import { useEngine } from '../lib/engine'
-import { desktop } from '../lib/platform'
+import { APP_VERSION, desktop, isDesktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
 
 export type Page = 'feed' | 'approvals' | 'sources' | 'token' | 'positions' | 'orders' | 'rules' | 'settings' | 'users'
@@ -119,7 +119,40 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
           </div>
         )}
         <main className="content">{children}</main>
+        <StatusBar />
       </div>
     </div>
+  )
+}
+
+// Alt durum çubuğu: veritabanı bağlantısı, motor, GMGN gecikmesi, işlem modu
+function StatusBar() {
+  const { online, status } = useEngine()
+  const { rule } = usePipeline()
+  const [connected, setConnected] = useState(true)
+
+  useEffect(() => {
+    const check = () => setConnected(supabase.realtime.isConnected())
+    check()
+    const t = setInterval(check, 5_000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <footer className="statusbar">
+      <span className="row" style={{ gap: 5 }}>
+        <span className={`dot ${connected ? 'on' : 'off'}`} />
+        {connected ? 'Bağlı' : 'Bağlantı yok'}
+      </span>
+      <span className="row" style={{ gap: 5 }}>
+        <span className={`dot ${online ? 'on' : 'off'}`} />
+        Motor{status?.host ? ` · ${status.host}` : ''}
+      </span>
+      {online && status?.gmgn_latency_ms != null && <span>GMGN {status.gmgn_latency_ms} ms</span>}
+      <span className={rule.limits.liveTrading ? 'neg' : undefined}>{rule.limits.liveTrading ? 'GERÇEK işlem' : 'Deneme modu'}</span>
+      <span style={{ marginLeft: 'auto' }}>
+        {isDesktop ? 'Masaüstü' : 'Web'} · v{APP_VERSION}
+      </span>
+    </footer>
   )
 }

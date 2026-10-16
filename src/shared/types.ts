@@ -1,3 +1,5 @@
+import type { FeedAuthor, FeedMedia } from './feed'
+
 export type Role = 'founder' | 'developer' | 'assistant'
 
 export interface Profile {
@@ -93,16 +95,26 @@ export interface TelegramChat {
 export interface TelegramMessage {
   chatId: string
   msgId: number
-  text: string
+  text: string // mesaj + gizli bağlantılar + buton URL'leri (adres ayıklama için)
+  body: string // sadece görünür mesaj metni (kart için)
   date: number // Unix saniye (Telegram zamanı)
-  receivedAt: number // Unix ms (bu bilgisayar)
+  receivedAt: number // Unix ms (motor)
   edited: boolean
+  photo?: Uint8Array // küçük önizleme (JPEG)
+  mediaOnly?: boolean // aynı mesajın görsel güncellemesi (sinyal olarak tekrar işlenmez)
+  replyText?: string
+  channelUsername?: string // herkese açık kanalsa t.me bağlantısı için
 }
 
 export interface XHit {
   tweetId: string
-  text: string
+  text: string // tüm metin alanları + bağlantılar (adres ayıklama için)
+  body?: string // gönderinin kendi metni (kart için)
   createdAt?: number // Unix ms
+  author?: FeedAuthor
+  media?: FeedMedia[]
+  kind?: 'post' | 'reply' | 'quote' | 'repost'
+  ref?: { author?: FeedAuthor; text?: string }
 }
 
 export interface XMonitor {
