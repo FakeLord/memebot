@@ -22,6 +22,9 @@ export interface RuleLimits {
   // --- otomatik mod
   autoBuySol: number // otomatik alım tutarı
   dailyLossLimitSol: number // bugünkü gerçekleşen zarar bunu aşarsa otomatik mod kendini kapatır
+  // --- ücret preset'leri (fee_presets): elle işlemde etkin olan ve otomatik modun kullandığı
+  activePreset: 1 | 2 | 3
+  autoPreset: 1 | 2 | 3
 }
 
 export interface Rule {
@@ -44,7 +47,9 @@ export const DEFAULT_LIMITS: RuleLimits = {
   dailyMaxSol: 2,
   maxOpenPositions: 5,
   autoBuySol: 0.05,
-  dailyLossLimitSol: 0.5
+  dailyLossLimitSol: 0.5,
+  activePreset: 1,
+  autoPreset: 1
 }
 
 export const DEFAULT_TPSL: ConditionOrder[] = [

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { PrefsProvider, usePrefs } from './lib/prefs'
+import { keyCombo, type KeyAction } from '../../shared/settings'
 import { AuthProvider, useAuth } from './lib/auth'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { PipelineProvider } from './lib/pipeline'
@@ -88,7 +90,9 @@ function Gate() {
     <KillSwitchProvider>
       <EngineProvider>
         <PipelineProvider>
+          <PrefsProvider>
           <OrdersProvider>
+            <Shortcuts onNavigate={(p) => setPage(p)} />
             <Layout
               page={page}
               onNavigate={(p) => {
@@ -107,8 +111,32 @@ function Gate() {
               {page === 'users' && profile.role === 'founder' && <UsersPage />}
             </Layout>
           </OrdersProvider>
+          </PrefsProvider>
         </PipelineProvider>
       </EngineProvider>
     </KillSwitchProvider>
   )
+}
+
+// Klavye kısayolları (Ayarlar → Kısayollar). Yazı alanlarında sadece F tuşları çalışır.
+function Shortcuts({ onNavigate }: { onNavigate: (p: Page) => void }) {
+  const { keybinds, setActivePreset } = usePrefs()
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const combo = keyCombo(e)
+      if (!combo) return
+      const t = e.target as HTMLElement | null
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
+      if (typing && !/^F\d+$/.test(combo)) return
+      const action = (Object.keys(keybinds) as KeyAction[]).find((a) => keybinds[a] === combo)
+      if (!action) return
+      e.preventDefault()
+      if (action === 'preset1' || action === 'preset2' || action === 'preset3') setActivePreset(Number(action.slice(-1)) as 1 | 2 | 3)
+      else if (action === 'feed' || action === 'approvals' || action === 'positions') onNavigate(action)
+      else if (action === 'deploy') window.dispatchEvent(new CustomEvent('memebot:deploy'))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [keybinds, setActivePreset, onNavigate])
+  return null
 }

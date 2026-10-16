@@ -5,6 +5,7 @@ import { useEngine } from '../lib/engine'
 import { usePipeline } from '../lib/pipeline'
 import { useOrders } from '../lib/orders'
 import { useKillSwitch } from '../lib/killswitch'
+import { usePrefs } from '../lib/prefs'
 import { FeedCard, type CardActions } from '../components/FeedCard'
 import { SignalsPanel } from './Signals'
 import { useSources } from './Sources'
@@ -15,16 +16,9 @@ import type { TelegramStatus } from '../../../shared/types'
 
 const PAGE = 60
 
-export function FeedPage({
-  onCheck,
-  onDeploy,
-  keywords = []
-}: {
-  onCheck: (mint: string) => void
-  onDeploy?: (item: FeedItem) => void
-  keywords?: (KeywordRule & { color?: string | null })[]
-}) {
+export function FeedPage({ onCheck, onDeploy }: { onCheck: (mint: string) => void; onDeploy?: (item: FeedItem) => void }) {
   const [tab, setTab] = useState<'feed' | 'signals'>('feed')
+  const { keywords } = usePrefs()
   return (
     <div className="stack">
       <div className="tabs">
@@ -84,6 +78,10 @@ function FeedList({
   const [withMint, setWithMint] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
   const [now, setNow] = useState(Date.now())
+  const { sources: tgSources } = useSources('telegram')
+  const { sources: xSources } = useSources('x')
+  // Sessize alınan kaynakların kartları gösterilmez (sinyalleri yine işlenir)
+  const muted = useMemo(() => new Set([...tgSources, ...xSources].filter((s) => s.muted).map((s) => s.id)), [tgSources, xSources])
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 5_000)
@@ -141,6 +139,7 @@ function FeedList({
     const list = items.filter(
       (i) =>
         (showHidden || !i.hidden) &&
+        (showHidden || !i.source_id || !muted.has(i.source_id)) &&
         (platform === 'all' || i.platform === platform) &&
         (!withMint || i.mints.length > 0) &&
         (!ql ||
@@ -150,7 +149,7 @@ function FeedList({
     )
     // Sabitlenenler en üstte
     return [...list.filter((i) => i.pinned), ...list.filter((i) => !i.pinned)]
-  }, [items, query, platform, withMint, showHidden])
+  }, [items, query, platform, withMint, showHidden, muted])
 
   return (
     <div className="feed">

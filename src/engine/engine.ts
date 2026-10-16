@@ -44,7 +44,7 @@ export class Engine {
     this.orders = new OrderEngine(this.ctx)
     this.pipeline = new Pipeline(this.ctx, this.orders)
     this.tracker = new Tracker(this.ctx)
-    this.feed = new FeedWriter(this.ctx)
+    this.feed = new FeedWriter(this.ctx, (id) => this.ctx.users.keywords(id))
     this.sources = new SourceHub(this.ctx, this.feed, o.xPoll)
     this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, xPoll: o.xPoll })
   }
@@ -142,6 +142,7 @@ export class Engine {
         if (r.user_id) this.ctx.users.setRuleRow(r.user_id, r)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sources' }, () => void this.sources.reloadSources())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'keywords' }, () => void this.ctx.users.loadKeywords())
       .subscribe()
   }
 

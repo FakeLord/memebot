@@ -231,37 +231,8 @@ function TradingCard({ draft, setDraft }: { draft: Rule; setDraft: React.Dispatc
         </span>
       </label>
 
+      <p className="faint">Öncelik ücreti, tip, slippage ve anti-MEV artık Ayarlar → Ücret preset'leri (P1–P3) bölümünde.</p>
       <div className="grid-2">
-        <label>
-          Slippage (%)
-          <div className="row">
-            <input
-              type="number"
-              min={1}
-              max={100}
-              disabled={l.slippage === 'auto'}
-              value={l.slippage === 'auto' ? '' : l.slippage}
-              onChange={(e) => setL('slippage', Math.min(100, numIn(e.target.value, 1)))}
-              style={{ flex: 1 }}
-            />
-            <label className="row" style={{ color: 'var(--text)', fontSize: 13 }}>
-              <input type="checkbox" checked={l.slippage === 'auto'} onChange={(e) => setL('slippage', e.target.checked ? 'auto' : 30)} />
-              Otomatik
-            </label>
-          </div>
-        </label>
-        <label className="row" style={{ color: 'var(--text)', fontSize: 13, alignSelf: 'end' }}>
-          <input type="checkbox" checked={l.antiMev} onChange={(e) => setL('antiMev', e.target.checked)} />
-          Anti-MEV koruması (önerilir)
-        </label>
-        <label>
-          Öncelik ücreti (SOL)
-          <input type="number" min={0.00001} step="any" value={l.priorityFeeSol} onChange={(e) => setL('priorityFeeSol', numIn(e.target.value))} />
-        </label>
-        <label>
-          Tip ücreti (SOL)
-          <input type="number" min={0.00001} step="any" value={l.tipFeeSol} onChange={(e) => setL('tipFeeSol', numIn(e.target.value))} />
-        </label>
         <label>
           Günlük maks. harcama (SOL)
           <input type="number" min={0} step="any" value={l.dailyMaxSol} onChange={(e) => setL('dailyMaxSol', numIn(e.target.value))} />

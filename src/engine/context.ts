@@ -5,6 +5,7 @@ import type { GmgnSecret, Vault } from './vault'
 import { ruleFromRow, type Rule, type RuleRow } from '../shared/rules'
 import type { EngineUserState } from '../shared/engine'
 import type { Role } from '../shared/types'
+import type { KeywordRule } from '../shared/feed'
 
 // Motorun modülleri arasında paylaşılan bağlam: veritabanı, kasa, kullanıcı dizini, durum yazıcı.
 
@@ -30,8 +31,21 @@ interface ProfileLite {
 export class Users {
   private profiles = new Map<string, ProfileLite>()
   private rules = new Map<string, Rule>()
+  private keywordMap = new Map<string, KeywordRule[]>()
 
   constructor(private readonly db: SupabaseClient) {}
+
+  /** Kullanıcının anahtar kelimeleri (öneri ızgarası arama terimleri için). */
+  keywords(userId: string): KeywordRule[] {
+    return this.keywordMap.get(userId) ?? []
+  }
+
+  async loadKeywords(): Promise<void> {
+    const { data } = await this.db.from('keywords').select('user_id, pattern, match, muted')
+    const m = new Map<string, KeywordRule[]>()
+    for (const k of (data as (KeywordRule & { user_id: string })[]) ?? []) m.set(k.user_id, [...(m.get(k.user_id) ?? []), k])
+    this.keywordMap = m
+  }
 
   async load(): Promise<void> {
     const [{ data: p, error: pe }, { data: r, error: re }] = await Promise.all([
@@ -42,6 +56,7 @@ export class Users {
     if (re) throw new Error(`rules: ${re.message}`)
     this.profiles = new Map(((p as ProfileLite[]) ?? []).map((x) => [x.id, x]))
     this.rules = new Map(((r as (RuleRow & { user_id: string })[]) ?? []).map((x) => [x.user_id, ruleFromRow(x)]))
+    await this.loadKeywords()
   }
 
   setRuleRow(userId: string, row: RuleRow | null) {

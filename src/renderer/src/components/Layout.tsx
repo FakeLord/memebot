@@ -5,6 +5,7 @@ import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
 import { useOrders } from '../lib/orders'
 import { useEngine } from '../lib/engine'
+import { usePrefs } from '../lib/prefs'
 import { APP_VERSION, desktop, isDesktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
 
@@ -129,13 +130,15 @@ export function Layout({ page, onNavigate, children }: { page: Page; onNavigate:
 function StatusBar() {
   const { online, status } = useEngine()
   const { rule } = usePipeline()
+  const { activePreset, setActivePreset, keybinds } = usePrefs()
   const [connected, setConnected] = useState(true)
 
+  // Gerçek zamanlı bağlantı: kendi kanalımızın durumu (kopunca istemci kendisi yeniden bağlanır)
   useEffect(() => {
-    const check = () => setConnected(supabase.realtime.isConnected())
-    check()
-    const t = setInterval(check, 5_000)
-    return () => clearInterval(t)
+    const ch = supabase.channel('statusbar-ping').subscribe((st) => setConnected(st === 'SUBSCRIBED'))
+    return () => {
+      supabase.removeChannel(ch)
+    }
   }, [])
 
   return (
@@ -150,6 +153,19 @@ function StatusBar() {
       </span>
       {online && status?.gmgn_latency_ms != null && <span>GMGN {status.gmgn_latency_ms} ms</span>}
       <span className={rule.limits.liveTrading ? 'neg' : undefined}>{rule.limits.liveTrading ? 'GERÇEK işlem' : 'Deneme modu'}</span>
+      <span className="row" style={{ gap: 2 }} title="Ücret preset'i (Ayarlar → Ücret preset'leri)">
+        Ücret
+        {([1, 2, 3] as const).map((s) => (
+          <button
+            key={s}
+            className={`preset-pill ${activePreset === s ? 'on' : ''}`}
+            title={keybinds[`preset${s}`]}
+            onClick={() => setActivePreset(s)}
+          >
+            P{s}
+          </button>
+        ))}
+      </span>
       <span style={{ marginLeft: 'auto' }}>
         {isDesktop ? 'Masaüstü' : 'Web'} · v{APP_VERSION}
       </span>

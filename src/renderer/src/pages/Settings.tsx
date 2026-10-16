@@ -4,29 +4,76 @@ import { errText, useEngine } from '../lib/engine'
 import { APP_VERSION, desktop } from '../lib/platform'
 import type { EngineHostStatus, WalletInfo } from '../../../shared/types'
 import type { GmgnPlan } from '../../../shared/engine'
+import { AccountsSection } from './settings/Accounts'
+import { KeywordsSection } from './settings/Keywords'
+import { AppearanceSection } from './settings/Appearance'
+import { PresetsSection } from './settings/Presets'
+import { ShortcutsSection } from './settings/Shortcuts'
 
 type Msg = { kind: 'ok' | 'error'; text: string } | null
 
-export function SettingsPage() {
+type Section = 'accounts' | 'keywords' | 'appearance' | 'presets' | 'connections' | 'shortcuts' | 'about'
+
+const MENU: { group: string; items: { id: Section; label: string }[] }[] = [
+  { group: 'Takip', items: [{ id: 'accounts', label: 'Hesaplar' }, { id: 'keywords', label: 'Anahtar kelimeler' }, { id: 'appearance', label: 'Görünüm' }] },
+  { group: 'İşlem', items: [{ id: 'presets', label: "Ücret preset'leri" }, { id: 'connections', label: 'GMGN ve motor' }] },
+  { group: 'Uygulama', items: [{ id: 'shortcuts', label: 'Kısayollar' }, { id: 'about', label: 'Hakkında' }] }
+]
+
+export function SettingsPage({ initial }: { initial?: Section }) {
+  const [section, setSection] = useState<Section>(initial ?? 'connections')
+  return (
+    <div className="settings">
+      <nav className="settings-nav">
+        {MENU.map((g) => (
+          <div key={g.group} className="stack" style={{ gap: 2 }}>
+            <div className="settings-group">{g.group}</div>
+            {g.items.map((i) => (
+              <button key={i.id} className="nav-item" aria-current={section === i.id ? 'page' : undefined} onClick={() => setSection(i.id)}>
+                {i.label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </nav>
+      <div className="settings-body">
+        {section === 'accounts' && <AccountsSection />}
+        {section === 'keywords' && <KeywordsSection />}
+        {section === 'appearance' && <AppearanceSection />}
+        {section === 'presets' && <PresetsSection />}
+        {section === 'connections' && <ConnectionsSection />}
+        {section === 'shortcuts' && <ShortcutsSection />}
+        {section === 'about' && <AboutSection />}
+      </div>
+    </div>
+  )
+}
+
+function ConnectionsSection() {
   const { profile } = useAuth()
   return (
-    <div className="stack" style={{ maxWidth: 720 }}>
+    <div className="stack">
       <EngineCard />
       <GmgnCard />
       <WalletCard />
       {desktop && profile?.role === 'founder' && <EngineHostCard />}
-      <div className="card stack">
-        <h2>Uygulama</h2>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <span className="muted">
-            Sürüm <span className="mono">{APP_VERSION}</span> · {desktop ? 'masaüstü' : 'web'}
-          </span>
-          {desktop && (
-            <button className="btn btn-sm" onClick={() => desktop?.updater.check()}>
-              Güncellemeleri denetle
-            </button>
-          )}
-        </div>
+    </div>
+  )
+}
+
+function AboutSection() {
+  return (
+    <div className="card stack">
+      <h2>Uygulama</h2>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <span className="muted">
+          Sürüm <span className="mono">{APP_VERSION}</span> · {desktop ? 'masaüstü' : 'web'}
+        </span>
+        {desktop && (
+          <button className="btn btn-sm" onClick={() => desktop?.updater.check()}>
+            Güncellemeleri denetle
+          </button>
+        )}
       </div>
     </div>
   )

@@ -314,6 +314,39 @@ d('MemeBot Engine (yerel Supabase)', () => {
     await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 })
   })
 
+  it("ücret preset'i: emir P2 ile gelirse ücretler P2 kaydından; anahtar kelime öneri terimi olur", async () => {
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: true, maxOpenPositions: 50, activePreset: 1 })
+    const up = await dev.client
+      .from('fee_presets')
+      .upsert({ user_id: dev.id, slot: 2, kind: 'buy', priority_sol: 0.002, tip_sol: 0.003, slippage: null, anti_mev: false }, { onConflict: 'user_id,slot,kind' })
+    expect(up.error).toBeNull()
+    gmgn.queryResults = ['confirmed']
+    const { data } = await dev.client
+      .from('orders')
+      .insert({ user_id: dev.id, idempotency_key: `p2:${tag}`, side: 'buy', mint: mint(), amount_in: '10000000', is_dry_run: false, preset: 2 })
+      .select('id')
+      .single()
+    const done = await waitFor(async () => {
+      const r = await order(data!.id)
+      return ['confirmed', 'failed'].includes(r?.status) ? r : null
+    })
+    expect(done.error_code).toBeNull()
+    const swap = gmgn.calls.filter((c) => c.fn === 'swap').at(-1)!.args as Record<string, unknown>
+    expect(swap.priority_fee).toBe('0.002')
+    expect(swap.tip_fee).toBe('0.003')
+    expect(swap.auto_slippage).toBe(true)
+    expect(swap.is_anti_mev).toBe(false)
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 })
+
+    // Anahtar kelime → öneri ızgarası arama terimi
+    await dev.client.from('keywords').insert({ user_id: dev.id, pattern: 'kedi', match: 'word' })
+    await engine.ctx.users.loadKeywords()
+    gmgn.searchResults.set('kedi', [{ address: mint(), name: 'Kedi', symbol: 'KEDI', price: '0.01', mcp: '9000' }])
+    const id = await engine.feed.ingest(dev.id, null, { platform: 'x', externalId: `kw-${tag}`, author: {}, body: 'bugün kedi günü' })
+    const card = await waitFor(async () => (await dev.client.from('feed_items').select('suggestions').eq('id', id!).single()).data?.suggestions?.length ? true : null)
+    expect(card).toBe(true)
+  })
+
   it('tümünü sat: açık tüm pozisyonlar satılır', async () => {
     const r = await runCommand(dev.client, dev.id, 'positions.sell_all', {}, 30_000)
     expect(r.errors).toEqual([])

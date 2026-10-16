@@ -182,7 +182,8 @@ export class Pipeline {
         amount_in: String(Math.round(amount * 1e9)),
         is_dry_run: !live,
         candidate_id: candidateId,
-        symbol: symbol ?? null
+        symbol: symbol ?? null,
+        preset: rule.limits.autoPreset
       })
       .select(ORDER_COLS)
       .single()

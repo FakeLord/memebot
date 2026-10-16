@@ -103,8 +103,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--faint); }
 }
 .btn:hover:not(:disabled) { border-color: var(--faint); }
 .btn:disabled { opacity: 0.45; cursor: default; }
-.btn-primary { background: var(--accent); color: #0b0b0c; border-color: var(--accent); font-weight: 600; }
-.btn-primary:hover:not(:disabled) { background: #ffffff; }
+.btn-primary { background: var(--accent); color: var(--accent-text, #0b0b0c); border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .btn-danger { color: var(--neg); }
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 
@@ -227,3 +227,23 @@ tr:last-child td { border-bottom: 0; }
   .statusbar { padding: 0 16px; overflow: hidden; white-space: nowrap; }
   .feed-toolbar { flex-direction: column; align-items: flex-start; }
 }
+
+/* --- ayarlar: sol menü + içerik */
+.settings { display: grid; grid-template-columns: 190px minmax(0, 760px); gap: 24px; }
+.settings-nav { display: grid; gap: 14px; align-content: start; position: sticky; top: 0; }
+.settings-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); padding: 0 10px 4px; }
+.settings-body { min-width: 0; }
+.swatch { width: 28px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.theme-tile { all: unset; cursor: pointer; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; color: var(--muted); }
+.theme-tile[aria-pressed='true'] { border-color: var(--text); color: var(--text); }
+.theme-swatch { height: 46px; border-radius: 4px; border: 1px solid; display: flex; gap: 6px; align-items: flex-end; padding: 6px; }
+.theme-swatch span:first-child { flex: 1; height: 24px; border-radius: 3px; border: 1px solid; }
+.theme-swatch span:last-child { width: 14px; height: 14px; border-radius: 50%; }
+@media (max-width: 760px) {
+  .settings { grid-template-columns: 1fr; }
+  .settings-nav { position: static; grid-auto-flow: column; overflow-x: auto; }
+}
+.preset-pill { all: unset; cursor: pointer; padding: 0 5px; border-radius: 3px; color: var(--faint); }
+.preset-pill:hover { color: var(--text); }
+.preset-pill.on { color: var(--text); background: var(--surface-2); }

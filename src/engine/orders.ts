@@ -2,6 +2,7 @@ import type { EngineContext } from './context'
 import * as trade from './gmgn/trade'
 import { summarizeToken } from '../shared/safety'
 import type { Rule } from '../shared/rules'
+import { presetFromRow, resolvePreset, type FeePresetRow, type PresetKind, type PresetSlot } from '../shared/settings'
 import type { BuyRequest, ExecParams, GmgnResult, SellRequest } from '../shared/types'
 import { startOfDay } from './time'
 
@@ -19,7 +20,7 @@ const TRACK_MAX = 60 // ~3 dakika
 const STALE_CREATED_MS = 60_000 // bu kadar bekleyen niyet artık güncel değil (fiyat değişmiş olabilir)
 
 export const ORDER_COLS =
-  'id, user_id, idempotency_key, side, mint, wallet, amount_in, status, is_dry_run, gmgn_order_id, position_id, sell_percent, symbol, candidate_id, created_at'
+  'id, user_id, idempotency_key, side, mint, wallet, amount_in, status, is_dry_run, gmgn_order_id, position_id, sell_percent, symbol, candidate_id, preset, created_at'
 
 type OrderStatus = 'created' | 'sending' | 'submitted' | 'pending' | 'processed' | 'confirmed' | 'failed' | 'expired'
 
@@ -38,6 +39,7 @@ export interface OrderRow {
   sell_percent: number | null
   symbol: string | null
   candidate_id: string | null
+  preset: number | null
   created_at: string
 }
 
@@ -55,9 +57,12 @@ export function normStatus(s: unknown): OrderStatus | undefined {
   return undefined
 }
 
-export function execParams(rule: Rule): ExecParams {
-  const l = rule.limits
-  return { dryRun: !l.liveTrading, slippage: l.slippage, priorityFeeSol: l.priorityFeeSol, tipFeeSol: l.tipFeeSol, antiMev: l.antiMev }
+// Ücretler emrin preset'inden (P1–P3); preset kaydı yoksa kuraldaki eski tek ücret seti
+export async function execParams(ctx: EngineContext, userId: string, rule: Rule, kind: PresetKind, slot?: number | null): Promise<ExecParams & { preset: PresetSlot }> {
+  const s = (slot && slot >= 1 && slot <= 3 ? slot : rule.limits.activePreset) as PresetSlot
+  const { data } = await ctx.db.from('fee_presets').select('slot, kind, priority_sol, tip_sol, slippage, anti_mev').eq('user_id', userId)
+  const p = resolvePreset(((data as FeePresetRow[]) ?? []).map(presetFromRow), s, kind, rule.limits)
+  return { dryRun: !rule.limits.liveTrading, slippage: p.slippage, priorityFeeSol: p.priorityFeeSol, tipFeeSol: p.tipFeeSol, antiMev: p.antiMev, preset: s }
 }
 
 const now = () => new Date().toISOString()
@@ -172,9 +177,10 @@ export class OrderEngine {
       return `Günlük limit: bugün ${spentSol.toFixed(3)} SOL harcandı, sınır ${rule.limits.dailyMaxSol} SOL`
     }
 
-    const params: BuyRequest = { ...execParams(rule), mint: order.mint, amountSol, conditionOrders: live ? rule.tpSl : [] }
-    await ctx.db.from('orders').update({ wallet: g.secret.wallet, request: params }).eq('id', order.id)
-    await ctx.audit(order.user_id, live ? 'order.buy' : 'order.buy_dry', { mint: order.mint, amountSol })
+    const { preset, ...fees } = await execParams(ctx, order.user_id, rule, 'buy', order.preset)
+    const params: BuyRequest = { ...fees, mint: order.mint, amountSol, conditionOrders: live ? rule.tpSl : [] }
+    await ctx.db.from('orders').update({ wallet: g.secret.wallet, request: params, preset }).eq('id', order.id)
+    await ctx.audit(order.user_id, live ? 'order.buy' : 'order.buy_dry', { mint: order.mint, amountSol, preset })
     const res = await trade.buy(g.client, g.secret.wallet, params)
     return this.afterSend({ ...order, wallet: g.secret.wallet }, res)
   }
@@ -211,8 +217,9 @@ export class OrderEngine {
     if (!g) return 'GMGN anahtarı girilmemiş (Ayarlar)'
     if (!g.secret.wallet) return 'İşlem cüzdanı seçilmemiş (Ayarlar → GMGN)'
 
-    const params: SellRequest = { ...execParams(rule), dryRun: p.is_dry_run, mint: p.mint, percent, amountRaw: p.amount_raw ?? undefined }
-    await ctx.db.from('orders').update({ wallet: g.secret.wallet, request: params, amount_in: p.amount_raw ?? '0' }).eq('id', order.id)
+    const { preset, ...fees } = await execParams(ctx, order.user_id, rule, 'sell', order.preset)
+    const params: SellRequest = { ...fees, dryRun: p.is_dry_run, mint: p.mint, percent, amountRaw: p.amount_raw ?? undefined }
+    await ctx.db.from('orders').update({ wallet: g.secret.wallet, request: params, amount_in: p.amount_raw ?? '0', preset }).eq('id', order.id)
     await ctx.audit(order.user_id, p.is_dry_run ? 'order.sell_dry' : 'order.sell', { mint: p.mint, percent })
     const res = await trade.sell(g.client, g.secret.wallet, params)
     return this.afterSend({ ...order, wallet: g.secret.wallet }, res)

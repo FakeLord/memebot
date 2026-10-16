@@ -69,7 +69,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           amount_in: String(Math.round(amountSol * LAMPORTS)),
           is_dry_run: !live,
           candidate_id: candidateId ?? null,
-          symbol: symbol ?? null
+          symbol: symbol ?? null,
+          preset: rule.limits.activePreset
         })
         .select('id')
         .single()
@@ -97,14 +98,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           is_dry_run: position.is_dry_run,
           position_id: position.id,
           sell_percent: percent,
-          symbol: position.symbol
+          symbol: position.symbol,
+          preset: rule.limits.activePreset
         })
         .select('id')
         .single()
       if (error) return error.code === '23505' ? 'Bu satış zaten gönderildi' : error.message
       return settle(row.id)
     },
-    [profile?.id, profile?.role, online]
+    [profile?.id, profile?.role, online, rule.limits.activePreset]
   )
 
   const sellAll = useCallback(async () => {

@@ -14,6 +14,7 @@ export interface SourceRow {
   chat_id: string
   title: string
   is_active: boolean
+  muted: boolean
 }
 
 export function useSources(type: SourceRow['type']) {
@@ -23,7 +24,7 @@ export function useSources(type: SourceRow['type']) {
     if (!profile) return
     const { data } = await supabase
       .from('sources')
-      .select('id, type, chat_id, title, is_active')
+      .select('id, type, chat_id, title, is_active, muted')
       .eq('user_id', profile.id)
       .eq('type', type)
       .order('title')
