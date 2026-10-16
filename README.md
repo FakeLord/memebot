@@ -49,6 +49,16 @@ Kurallar veritabanında (RLS) uygulanır; arayüzü değiştirmek yetki kazandı
 Uygulama hesabınızla sadece okur, mesaj göndermez. Ana hesap yerine ayrı bir Telegram hesabı önerilir.
 Oturum her bilgisayarda ayrı ve şifreli saklanır; aynı mesaj iki bilgisayarda yakalansa da bir kez sayılır.
 
+## X / Twitter bağlantısı (XFlux)
+
+1. https://www.xfluxapi.com adresinde hesap açın, API anahtarını (`xflux_...`) alın.
+2. XFlux paneli → **Monitors**: izlemek istediğiniz her hesap için izleyici kurun.
+   Ücretsiz plan 5 dk'da bir kontrol eder; token yakalamak için Starter ve üstü (1 sn) gerekir.
+3. Uygulamada **Kaynaklar → X / Twitter**: anahtarı girin, listelenen izleyicilerde **İzle**'ye basın.
+
+Uygulama kalan aylık kotaya göre yoklama hızını ayarlar. Aynı kullanıcı birden fazla bilgisayarda
+açıksa sadece biri yoklar. Anahtar her bilgisayarda ayrı ve şifreli saklanır.
+
 ## Geliştirme
 
 ```bash

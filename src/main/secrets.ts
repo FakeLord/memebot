@@ -14,7 +14,7 @@ export interface TelegramSecret {
   session: string
 }
 
-type Kind = 'gmgn' | 'telegram'
+type Kind = 'gmgn' | 'telegram' | 'xflux'
 
 function fileFor(userId: string, kind: Kind): string {
   if (!USER_ID.test(userId)) throw new Error('Geçersiz kullanıcı kimliği')
@@ -46,3 +46,7 @@ export const clearGmgnCredentials = (userId: string) => clear(userId, 'gmgn')
 export const saveTelegramSecret = (userId: string, s: TelegramSecret) => save(userId, 'telegram', s)
 export const loadTelegramSecret = (userId: string) => load<TelegramSecret>(userId, 'telegram')
 export const clearTelegramSecret = (userId: string) => clear(userId, 'telegram')
+
+export const saveXfluxKey = (userId: string, apiKey: string) => save(userId, 'xflux', { apiKey })
+export const loadXfluxKey = (userId: string) => load<{ apiKey: string }>(userId, 'xflux')?.apiKey ?? null
+export const clearXfluxKey = (userId: string) => clear(userId, 'xflux')

@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useTelegram } from '../lib/telegram'
 import { useAuth } from '../lib/auth'
+import { useXSource, type XState } from '../lib/xsource'
 import type { TelegramChat } from '../../../shared/types'
 
 export function SourcesPage() {
@@ -9,6 +10,7 @@ export function SourcesPage() {
     <div className="stack" style={{ maxWidth: 820 }}>
       <ConnectionCard />
       <ChatsCard />
+      <XCard />
     </div>
   )
 }
@@ -213,6 +215,116 @@ function ChatsCard() {
             </table>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+const X_STATE: Record<XState, string> = {
+  no_key: 'XFlux anahtarı yok',
+  starting: 'Başlıyor…',
+  polling: 'Çalışıyor',
+  other_machine: 'Başka bir bilgisayarınız yokluyor (kota tek yerden harcanır)',
+  error: 'Hata'
+}
+
+function XCard() {
+  const { profile } = useAuth()
+  const x = useXSource()
+  const [key, setKey] = useState('')
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const watched = new Set(x.sources.filter((s) => s.is_active).map((s) => s.chat_id))
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    const r = await window.api.xflux.saveKey(profile!.id, key)
+    setBusy(false)
+    if (r.ok) {
+      setKey('')
+      setMsg({ kind: 'ok', text: 'Anahtar bu bilgisayarda şifreli kaydedildi. İzleyiciler birkaç saniye içinde listelenecek.' })
+    } else setMsg({ kind: 'error', text: r.error ?? 'Kaydedilemedi' })
+  }
+
+  const toggle = async (id: string, username: string) => {
+    const on = !watched.has(id)
+    const { error } = await supabase
+      .from('sources')
+      .upsert({ user_id: profile!.id, type: 'x', chat_id: id, title: `@${username}`, is_active: on }, { onConflict: 'user_id,type,chat_id' })
+    if (error) setMsg({ kind: 'error', text: error.message })
+    await x.reload()
+  }
+
+  return (
+    <div className="card stack">
+      <h2>X / Twitter (XFlux)</h2>
+      <div className="row">
+        <span className={`dot ${x.state === 'polling' ? 'on' : x.state === 'other_machine' ? '' : 'off'}`} />
+        <span>{X_STATE[x.state]}</span>
+        {x.state === 'polling' && <span className="faint">· {Math.round(x.intervalMs / 1000)} sn'de bir</span>}
+        {x.quotaRemaining !== undefined && <span className="faint">· kalan aylık kota {x.quotaRemaining.toLocaleString('tr-TR')}</span>}
+      </div>
+      {x.error && <div className="notice error">{x.error}</div>}
+      {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
+
+      {x.state === 'no_key' ? (
+        <form className="stack" onSubmit={save}>
+          <p className="muted">
+            İzlemek istediğiniz hesaplar için <b>XFlux paneli → Monitors</b> bölümünde izleyici kurun (anahtar kelime boş bırakılırsa tüm
+            gönderiler gelir). Ücretsiz plan 5 dakikada bir kontrol eder; token yakalamak için Starter ve üstü (1 sn) gerekir. Anahtar sadece bu
+            bilgisayarda şifreli saklanır.
+          </p>
+          <div className="row">
+            <input
+              style={{ flex: 1 }}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="xflux_..."
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button className="btn btn-primary" disabled={busy || !key.trim()}>
+              {busy ? 'Kontrol ediliyor…' : 'Kaydet'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <>
+          {x.monitors.length === 0 ? (
+            <p className="muted">XFlux'ta izleyici bulunamadı. Panelden bir hesap için izleyici kurun; liste kendiliğinden güncellenir.</p>
+          ) : (
+            <table>
+              <tbody>
+                {x.monitors.map((m) => {
+                  const on = watched.has(m.id)
+                  return (
+                    <tr key={m.id}>
+                      <td>@{m.username}</td>
+                      <td className="faint">{m.hits.length ? `son ${m.hits.length} gönderi` : ''}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button className={`btn btn-sm ${on ? '' : 'btn-primary'}`} onClick={() => toggle(m.id, m.username)}>
+                          {on ? 'İzleniyor' : 'İzle'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+          <div>
+            <button
+              className="btn btn-sm btn-danger"
+              onClick={async () => {
+                await window.api.xflux.clearKey(profile!.id)
+                setMsg({ kind: 'ok', text: 'XFlux anahtarı bu bilgisayardan silindi.' })
+              }}
+            >
+              Anahtarı sil
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

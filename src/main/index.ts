@@ -3,9 +3,10 @@ import { join } from 'node:path'
 import { GmgnClient } from './gmgn/client'
 import { assertSigningKey } from './gmgn/signer'
 import type { GmgnPlan } from './gmgn/limiter'
-import { clearGmgnCredentials, loadGmgnCredentials, saveGmgnCredentials } from './secrets'
+import { clearGmgnCredentials, clearXfluxKey, loadGmgnCredentials, loadXfluxKey, saveGmgnCredentials, saveXfluxKey } from './secrets'
 import { setupUpdater } from './updater'
 import { TelegramService } from './telegram/service'
+import { pollMonitors } from './xflux/client'
 import { isLikelyMint } from '../shared/extract'
 import type { BuyRequest, GmgnResult, SellRequest } from '../shared/types'
 import * as trade from './gmgn/trade'
@@ -107,6 +108,23 @@ function registerIpc(updater: ReturnType<typeof setupUpdater>): void {
   ipcMain.handle('trade:tokenPrice', (_e, userId: string, mint: string) => {
     if (!isLikelyMint(mint)) return BAD_MINT
     return clientFor(userId)?.tokenPrice(mint) ?? NO_KEY
+  })
+
+  ipcMain.handle('xflux:saveKey', async (_e, userId: string, apiKey: string) => {
+    const key = String(apiKey ?? '').trim()
+    if (!/^xflux_[\w-]{8,}$/.test(key)) return { ok: false, error: 'Anahtar "xflux_" ile başlamalı' }
+    // Kaydetmeden önce dene: yanlış anahtar saklanmasın
+    const test = await pollMonitors(key, 1)
+    if (!test.ok && (test.status === 401 || test.status === 403)) return { ok: false, error: 'XFlux anahtarı reddedildi' }
+    saveXfluxKey(userId, key)
+    return { ok: true }
+  })
+  ipcMain.handle('xflux:hasKey', (_e, userId: string) => loadXfluxKey(userId) !== null)
+  ipcMain.handle('xflux:clearKey', (_e, userId: string) => clearXfluxKey(userId))
+  ipcMain.handle('xflux:poll', (_e, userId: string) => {
+    const key = loadXfluxKey(userId)
+    if (!key) return { ok: false, status: 0, error: 'XFlux anahtarı girilmemiş' }
+    return pollMonitors(key)
   })
 
   const telegram = new TelegramService({

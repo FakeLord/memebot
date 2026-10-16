@@ -29,6 +29,12 @@ const api: MemeBotApi = {
     holdings: (userId) => ipcRenderer.invoke('trade:holdings', userId),
     tokenPrice: (userId, mint) => ipcRenderer.invoke('trade:tokenPrice', userId, mint)
   },
+  xflux: {
+    saveKey: (userId, apiKey) => ipcRenderer.invoke('xflux:saveKey', userId, apiKey),
+    hasKey: (userId) => ipcRenderer.invoke('xflux:hasKey', userId),
+    clearKey: (userId) => ipcRenderer.invoke('xflux:clearKey', userId),
+    poll: (userId) => ipcRenderer.invoke('xflux:poll', userId)
+  },
   telegram: {
     attach: (userId) => ipcRenderer.invoke('telegram:attach', userId),
     detach: () => ipcRenderer.invoke('telegram:detach'),

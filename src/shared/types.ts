@@ -99,6 +99,22 @@ export interface TelegramMessage {
   edited: boolean
 }
 
+export interface XHit {
+  tweetId: string
+  text: string
+  createdAt?: number // Unix ms
+}
+
+export interface XMonitor {
+  id: string
+  username: string
+  hits: XHit[]
+}
+
+export type XPollResult =
+  | { ok: true; monitors: XMonitor[]; quotaRemaining?: number }
+  | { ok: false; status: number; error: string; retryAfterSec?: number; quotaRemaining?: number }
+
 export interface MemeBotApi {
   appVersion(): Promise<string>
   gmgn: {
@@ -120,6 +136,12 @@ export interface MemeBotApi {
     queryOrder(userId: string, orderId: string): Promise<GmgnResult>
     holdings(userId: string): Promise<{ ok: true; items: HoldingInfo[]; complete: boolean } | { ok: false; error: string }>
     tokenPrice(userId: string, mint: string): Promise<GmgnResult>
+  }
+  xflux: {
+    saveKey(userId: string, apiKey: string): Promise<{ ok: boolean; error?: string }>
+    hasKey(userId: string): Promise<boolean>
+    clearKey(userId: string): Promise<void>
+    poll(userId: string): Promise<XPollResult>
   }
   telegram: {
     attach(userId: string): Promise<TelegramStatus>

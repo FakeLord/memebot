@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useTelegram } from '../lib/telegram'
+import { useXSource } from '../lib/xsource'
 import { usePipeline } from '../lib/pipeline'
 import { extractMints } from '../../../shared/extract'
 import { evaluateSafety, VERDICT_LABEL, type Verdict } from '../../../shared/safety'
@@ -37,6 +38,8 @@ function excerpt(text: string | null, mint: string): string {
 export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const { profile } = useAuth()
   const { status, sources } = useTelegram()
+  const x = useXSource()
+  const xWatching = x.sources.filter((s) => s.is_active).length
   const [rows, setRows] = useState<SignalRow[]>([])
   const [hits, setHits] = useState<Hits>({})
   const [loaded, setLoaded] = useState(false)
@@ -124,9 +127,22 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
 
   return (
     <div className="stack">
-      <div className="row muted">
-        <span className={`dot ${status.state === 'connected' ? 'on' : 'off'}`} />
-        {status.state === 'connected' ? `Telegram bağlı · ${watching} kanal izleniyor` : 'Telegram bağlı değil — Kaynaklar ekranından bağlanın'}
+      <div className="row muted" style={{ gap: 18 }}>
+        <span className="row">
+          <span className={`dot ${status.state === 'connected' ? 'on' : 'off'}`} />
+          {status.state === 'connected' ? `Telegram · ${watching} kanal` : 'Telegram bağlı değil'}
+        </span>
+        <span className="row">
+          <span className={`dot ${x.state === 'polling' && xWatching > 0 ? 'on' : x.state === 'other_machine' ? '' : 'off'}`} />
+          {x.state === 'no_key'
+            ? 'X bağlı değil'
+            : x.state === 'other_machine'
+              ? 'X · başka bilgisayarınızda çalışıyor'
+              : x.state === 'error'
+                ? `X hatası: ${x.error ?? ''}`
+                : `X · ${xWatching} hesap`}
+        </span>
+        {(status.state !== 'connected' || x.state === 'no_key') && <span className="faint">Kaynaklar ekranından bağlanın</span>}
       </div>
 
       <form className="row" onSubmit={addManual}>
