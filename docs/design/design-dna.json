@@ -1,0 +1,234 @@
+{
+  "meta": {
+    "name": "MemeBot — Latent",
+    "description": "Yapay zekâ çıkarım motoru gibi davranan, sade ama farklı bir meme coin işlem arayüzü. 'Token' kelimesinin çift anlamı (dil modeli tokenı + coin) üzerine kurulu: her sinyal bir girdi (prompt), her karar bir çıkarım (inference), her emir bir çıktı. İkon ve emoji yok; anlam tipografi, nokta matrisi, çizgi ve sayıyla taşınır.",
+    "source_references": [
+      "Tanım tabanlı (referans görsel yok): kullanıcı isteği — sade, farklı, AI + coin mantığı, ikon/emoji yok",
+      "Mevcut uygulama: src/renderer/src (11 sayfa, 7 ayar alt sayfası, deploy paneli, durum çubuğu)",
+      "J7Tracker ekranları (yerleşim mantığı için, görsel kimlik alınmadı)"
+    ],
+    "created_at": "2026-10-16"
+  },
+  "design_system": {
+    "color": {
+      "palette_type": "monochromatic + tek imza rengi",
+      "primary": { "hex": "#ECEDEE", "role": "Birincil metin, birincil buton zemini (açık buton koyu metin)" },
+      "secondary": { "hex": "#8A8F98", "role": "İkincil metin, etiketler, pasif gezinme" },
+      "accent": { "hex": "#B6A6FF", "role": "Sadece 'model düşünüyor / dikkat' anlamı: çıkarım izi, odak halkası, dikkat ağırlıkları, seçili öğe imleci. Asla para anlamı taşımaz" },
+      "neutral": {
+        "scale": ["#ECEDEE", "#C9CCD1", "#8A8F98", "#555A62", "#2A2E33", "#1F2226", "#15171A", "#0F1012", "#08090A"],
+        "usage": "Açıktan koyuya. #ECEDEE ana metin; #C9CCD1 gövde vurgusu; #8A8F98 ikincil metin; #555A62 sadece süs ve devre dışı (metin için değil); #2A2E33 güçlü çizgi; #1F2226 ince çizgi; #15171A yükseltilmiş yüzey; #0F1012 kart; #08090A zemin"
+      },
+      "semantic": {
+        "success": "#57D9A3",
+        "warning": "#E8B95A",
+        "error": "#F26D6D",
+        "info": "#B6A6FF"
+      },
+      "surface": {
+        "background": "#08090A",
+        "card": "#0F1012",
+        "elevated": "#15171A"
+      },
+      "contrast_strategy": "Koyu zemin üzerinde açık metin; derinlik gölgeyle değil yüzey tonu ve 1px çizgiyle. Renk yalnızca anlam: yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı, mor yapay zekâ etkinliği"
+    },
+    "typography": {
+      "type_scale": {
+        "display": { "size": "44px", "weight": "500", "line_height": "1.0", "tracking": "-0.03em" },
+        "heading_1": { "size": "22px", "weight": "500", "line_height": "1.2", "tracking": "-0.015em" },
+        "heading_2": { "size": "15px", "weight": "500", "line_height": "1.3", "tracking": "-0.005em" },
+        "heading_3": { "size": "13px", "weight": "500", "line_height": "1.4", "tracking": "0" },
+        "body": { "size": "13px", "weight": "400", "line_height": "1.55", "tracking": "0" },
+        "body_small": { "size": "12px", "weight": "400", "line_height": "1.5", "tracking": "0" },
+        "caption": { "size": "11px", "weight": "400", "line_height": "1.4", "tracking": "0.01em" },
+        "overline": { "size": "10px", "weight": "500", "line_height": "1.2", "tracking": "0.14em" }
+      },
+      "font_families": {
+        "heading": "'Geist', 'Segoe UI Variable', system-ui, sans-serif",
+        "body": "'Geist', 'Segoe UI Variable', system-ui, sans-serif",
+        "mono": "'Geist Mono', 'Cascadia Mono', ui-monospace, monospace"
+      },
+      "font_style_notes": "Geometrik-grotesk sans arayüz için; TÜM sayılar, adresler, zaman damgaları ve skorlar mono (tabular). Bölüm etiketleri BÜYÜK HARF mono overline, geniş aralıklı. Büyük sayılar (PnL, skor) display boyutunda, ince ağırlıkta — veri bir model çıktısı gibi okunur"
+    },
+    "spacing": {
+      "base_unit": "4px",
+      "scale": ["4px", "8px", "12px", "16px", "20px", "24px", "32px", "48px"],
+      "content_density": "compact",
+      "section_rhythm": "Bölüm içi 12–16px, bölümler arası 24–32px; tablolar 36px satır yüksekliği"
+    },
+    "layout": {
+      "grid_system": "Sol gezinme rayı (216px) + üst komut çubuğu (56px) + içerik + alt durum çubuğu (28px). İçerik 12 sütun, sağda isteğe bağlı 'çıkarım paneli' (320px)",
+      "max_content_width": "1120px (akış sütunu 720px)",
+      "columns": "12",
+      "gutter": "16px",
+      "breakpoints": ["390px (telefon: alt sekme çubuğu)", "768px (tablet: ray daralır)", "1280px (masaüstü)", "1600px (geniş: çıkarım paneli sabit)"],
+      "alignment_tendency": "strict grid, sola hizalı; sayılar sağa hizalı"
+    },
+    "shape": {
+      "border_radius": { "small": "4px", "medium": "8px", "large": "12px", "pill": "999px" },
+      "border_usage": "subtle 1px her yerde (#1F2226); etkileşimli öğelerde üzerine gelince #2A2E33",
+      "divider_style": "1px düz çizgi; bölüm başlıklarında overline + uzanan ince çizgi"
+    },
+    "elevation": {
+      "shadow_style": "none (sadece modal için tek yumuşak gölge)",
+      "levels": {
+        "low": "none — yüzey tonu #0F1012",
+        "medium": "none — yüzey tonu #15171A + 1px #2A2E33",
+        "high": "0 24px 64px -16px rgba(0,0,0,0.7) — sadece modal / deploy paneli"
+      },
+      "depth_cues": "Yüzey tonu basamakları ve çizgi kalınlığı; arkaplanda çok soluk nokta matrisi"
+    },
+    "iconography": {
+      "style": "YOK — ikon ve emoji kullanılmaz",
+      "stroke_weight": "Uygulanamaz",
+      "size_scale": "Uygulanamaz; durum için 6px kare 'pip', yük için segmentli çubuklar",
+      "preferred_set": "Yok. Yerine: metin etiketleri, mono kısaltmalar (TG, X, SOL), sayı indeksleri (01–09), pip ve çizgi"
+    },
+    "motion": {
+      "easing": "cubic-bezier(0.2, 0, 0, 1)",
+      "duration_scale": { "micro": "120ms", "normal": "220ms", "macro": "480ms" },
+      "entrance_pattern": "Yeni kart üstten 8px kayarak + opaklık; karar izi hücreleri soldan sağa sırayla yanar (60ms aralık)",
+      "exit_pattern": "Opaklık sönümü 120ms, yükseklik daralır",
+      "philosophy": "minimal functional — hareket sadece 'model çalışıyor' bilgisini taşır"
+    },
+    "components": {
+      "button_style": "Birincil: açık zemin (#ECEDEE) koyu metin, 8px köşe, 32px yükseklik. İkincil: şeffaf, 1px çizgi. Tehlike: şeffaf, kırmızı metin + kırmızı çizgi. Hiçbir butonda ikon yok; klavye kısayolu sağda mono rozet (F1, Enter)",
+      "input_style": "Zemin #08090A, 1px #1F2226, odakta 1px mor halka; etiket üstte overline. Sayı girişleri mono, sağa hizalı, birim sağ içte (SOL, %)",
+      "card_style": "Zemin #0F1012, 1px çizgi, 12px köşe, 16px iç boşluk; başlık satırı overline etiket + sağda mono meta",
+      "navigation_pattern": "Sol ray: sadece metin, solda iki haneli mono indeks (01 Akış). Seçili öğede solda 2px mor imleç çizgisi. Üstte merkezi komut çubuğu (token adresi / @hesap / komut yaz). Telefonda alt metin sekmeleri",
+      "modal_style": "Ortada 640px ya da sağda 480px yan panel; zemin #0F1012, tek yüksek gölge, arkası %60 karartma",
+      "list_style": "Tablolar: başlıkta overline, 36px satır, mono sayılar sağa, satır üzerine gelince #15171A",
+      "component_notes": "İmza bileşenler: (1) Güven çubuğu — 20 segmentli dikey çizgi dizisi, dolu segment sayısı = güvenlik skoru; (2) Karar izi — SİNYAL / GÜVENLİK / KURAL / ONAY / EMİR hücreleri, tamamlanan hücre dolu; (3) Token şeridi — metin kelime kelime ince kutucuklara bölünür, dikkat ağırlığı arkaplan yoğunluğuyla; (4) Adres parçası — mint adresi 4'lü mono gruplar; (5) Pip — 6px kare durum noktası"
+    }
+  },
+  "design_style": {
+    "aesthetic": {
+      "mood": ["sakin", "hassas", "zeki", "soğukkanlı", "teknik"],
+      "visual_metaphor": "Bir dil modelinin iç dünyası: girdiler tokenlara bölünür, dikkat ağırlıklandırılır, olasılıklar çubuklara dönüşür, karar bir iz bırakır. Coin = token",
+      "era_influence": "2020'ler yapay zekâ araştırma araçları (çıkarım izleri, olasılık dağılımları) + İsviçre tipografisinin ızgara disiplini",
+      "genre": "teknik araç / AI-native trading terminal",
+      "personality_traits": ["soğukkanlı", "açıklayıcı", "titiz", "az konuşan"],
+      "adjectives": ["sade", "ızgaralı", "sayısal", "şeffaf", "sessiz"]
+    },
+    "visual_language": {
+      "complexity": "minimal",
+      "ornamentation": "subtle accents — sadece nokta matrisi ve çizgi",
+      "whitespace_usage": "Kontrollü: veri yoğun ama hizalı; boşluk grupları ayırır",
+      "visual_weight_distribution": "Ağırlık sayılarda (PnL, skor, tutar); metin hafif",
+      "focal_strategy": "progressive reveal — kart özet gösterir, karar izi ve güven çubuğu ayrıntıya açılır",
+      "contrast_level": "Orta-yüksek; tek renk vurgusu",
+      "texture_usage": "Çok soluk nokta matrisi (latent alan), başka doku yok"
+    },
+    "composition": {
+      "hierarchy_method": "typographic hierarchy + sayı ölçeği",
+      "balance_type": "asymmetric (sol ray + içerik + isteğe bağlı sağ panel)",
+      "flow_direction": "Yukarıdan aşağı akış; sinyal soldan sağa karara (karar izi)",
+      "grouping_strategy": "Overline başlıklı kartlar ve ince çizgilerle bölümler",
+      "negative_space_role": "Bölümleri ayırır, süs için kullanılmaz"
+    },
+    "imagery": {
+      "photo_treatment": "Sadece gönderi medyası ve token logoları; logolar 32px kare, 6px köşe, hafif desatüre (%85)",
+      "illustration_style": "Yok",
+      "graphic_elements": "Nokta matrisi, segmentli çubuklar, ince bağlantı çizgileri, blok imleç (marka)",
+      "pattern_usage": "Arkaplanda 16px aralıklı nokta matrisi, %4 opaklık",
+      "image_shape": "Kare / hafif yuvarlatılmış dikdörtgen"
+    },
+    "interaction_feel": {
+      "feedback_style": "Durum metni + pip rengi; işlemlerde karar izi ilerler",
+      "hover_behavior": "Yüzey bir ton açılır, çizgi güçlenir; hareket yok",
+      "transition_personality": "snappy",
+      "loading_style": "Mor 'düşünüyor' satırı: üç segment soldan sağa yanıp söner (spinner yok)",
+      "microinteraction_density": "Düşük"
+    },
+    "brand_voice_in_ui": {
+      "tone": "Kısa, olgusal, Türkçe; model raporu gibi",
+      "formality": "Yarı resmi",
+      "cta_style": "direct imperative — 'Al 0.1 SOL', 'Reddet', 'Deploy et'",
+      "empty_state_approach": "Tek satır olgu + ne yapılacağı: 'Girdi yok. Kaynaklar'dan bir kanal bağlayın.'",
+      "error_tone": "Neden + sonraki adım; suçlama yok"
+    }
+  },
+  "visual_effects": {
+    "overview": {
+      "effect_intensity": "subtle-accent",
+      "performance_tier": "lightweight",
+      "fallback_strategy": "reduce to CSS — prefers-reduced-motion'da canvas durur, statik nokta matrisi kalır",
+      "primary_technology": "Canvas 2D (arkaplan alanı) + CSS"
+    },
+    "background_effects": {
+      "type": "generative-art",
+      "description": "Latent alan: 16px aralıklı nokta matrisi. Yeni sinyal geldiğinde ilgili satırdan yatay bir 'dikkat dalgası' geçer (noktalar 600ms boyunca mora döner ve söner)",
+      "technology": "Canvas 2D",
+      "params": {
+        "color_palette": ["#1F2226", "#B6A6FF"],
+        "speed": "Dalga 600ms; boşta hareket yok",
+        "density": "16px ızgara",
+        "opacity": "0.5 (nokta), dalga tepe 0.6",
+        "blend_mode": "normal"
+      }
+    },
+    "particle_systems": {
+      "enabled": false,
+      "type": "none",
+      "description": "Kullanılmaz",
+      "technology": "none",
+      "params": { "count": "0", "shape": "none", "size_range": "none", "movement_pattern": "none", "color_behavior": "none", "interaction": "none", "spawn_area": "none" }
+    },
+    "3d_elements": {
+      "enabled": false,
+      "type": "none",
+      "description": "Kullanılmaz",
+      "technology": "none",
+      "params": { "renderer": "none", "lighting": "none", "camera": "none", "materials": "none", "geometry": "none", "post_processing": [], "interaction_model": "none" }
+    },
+    "shader_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "Kullanılmaz",
+      "technology": "none",
+      "params": { "uniforms": "none", "vertex_manipulation": "none", "fragment_output": "none", "noise_type": "none", "distortion": "none" }
+    },
+    "scroll_effects": {
+      "parallax": { "enabled": false, "layers": "0", "depth_range": "none", "speed_curve": "none" },
+      "scroll_triggered_animations": { "enabled": false, "trigger_points": "none", "animation_type": "none", "scrub_behavior": "none" },
+      "scroll_morphing": { "enabled": false, "description": "Kullanılmaz" }
+    },
+    "text_effects": {
+      "type": "typewriter",
+      "description": "Sadece çıkarım satırında: botun kısa gerekçesi karakter karakter yazılır (ör. 'mint bırakılmış · rug 0.08 · likidite 41K · sonuç GEÇTİ')",
+      "technology": "CSS steps() + JS",
+      "params": { "split_strategy": "by-char", "animation_per_unit": "opacity 0 dan 1 e", "stagger": "12ms", "effect_style": "mono, mor imleç bloğu" }
+    },
+    "cursor_effects": {
+      "enabled": false,
+      "type": "none",
+      "description": "Kullanılmaz",
+      "params": { "shape": "none", "size": "none", "blend_mode": "none", "trail": "none", "interaction_zone": "none" }
+    },
+    "image_effects": {
+      "type": "none",
+      "description": "Kullanılmaz; logolar sadece hafif desatüre",
+      "technology": "CSS filter",
+      "params": { "filter_pipeline": "saturate(0.85)", "hover_transform": "none", "reveal_animation": "none", "distortion_type": "none" }
+    },
+    "glassmorphism_neumorphism": {
+      "enabled": false,
+      "style": "none",
+      "params": { "blur_radius": "0", "transparency": "1", "border_treatment": "1px düz", "shadow_type": "none", "light_source_angle": "none" }
+    },
+    "canvas_drawings": {
+      "enabled": true,
+      "type": "data-visualization",
+      "description": "Mini olasılık çizgileri: pozisyon satırlarında 24 noktalık fiyat izi, güven çubukları",
+      "technology": "Canvas 2D / inline SVG",
+      "params": { "draw_method": "1px çizgi + uç noktası", "animation_loop": "Veri değişince yeniden çiz, sürekli döngü yok", "color_scheme": "Nötr çizgi; uç noktası anlam rengi", "responsiveness": "ResizeObserver", "interaction": "none" }
+    },
+    "svg_animations": {
+      "enabled": true,
+      "type": "decorative-loop",
+      "description": "Marka blok imleci yanıp söner (1s, steps(2)); 'düşünüyor' göstergesi üç segment",
+      "params": { "animation_method": "CSS keyframes", "path_morphing": "none", "stroke_animation": "none", "filter_effects": "none" }
+    },
+    "composite_notes": "Tüm efektler 'model çalışıyor' bilgisini taşır, süs için yoktur. Nokta matrisi canvas'ı tek katman, 30 fps üst sınır; sekme gizliyken durur. Renk kuralı: mor = yapay zekâ etkinliği, yeşil/kırmızı/sarı = para ve risk; ikisi asla aynı öğede yarışmaz."
+  }
+}

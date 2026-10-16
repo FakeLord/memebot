@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MemeBot — Latent tasarım maketleri</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="latent.css" />
+</head>
+<body>
+<canvas id="latent"></canvas>
+<div id="root"></div>
+<script>
+// Maket üretici: her sayfa adres çubuğundaki #anahtar ile açılır (ör. index.html#akis).
+// İkon/emoji YOK — sadece metin, sayı, pip ve çizgi.
+
+const conf = (n, cls = '') => `<span class="conf ${cls}">${Array.from({ length: 20 }, (_, i) => `<i class="${i < n ? 'f' : ''}"></i>`).join('')}</span>`
+const addr = (a) => `<span class="addr">${a.match(/.{1,4}/g).map((g, i, arr) => (i < 2 || i >= arr.length - 2 ? `<b>${g}</b>` : g)).join(' ')}</span>`
+const short = (a) => `<span class="addr"><b>${a.slice(0, 4)}</b> ${a.slice(4, 8)} · · · ${a.slice(-8, -4)} <b>${a.slice(-4)}</b></span>`
+const trace = (steps, nowIx) =>
+  `<div class="trace">${['SİNYAL', 'GÜVENLİK', 'KURAL', 'ONAY', 'EMİR']
+    .map((k, i) => `<div class="${i < nowIx ? 'done' : i === nowIx ? 'now' : ''}"><span class="k">${String(i + 1).padStart(2, '0')} ${k}</span><span class="v">${steps[i] ?? '—'}</span></div>`)
+    .join('')}</div>`
+const spark = (pts, cls) => {
+  const w = 96, h = 24, max = Math.max(...pts), min = Math.min(...pts)
+  const xy = pts.map((p, i) => [(i / (pts.length - 1)) * (w - 4) + 2, h - 3 - ((p - min) / (max - min || 1)) * (h - 6)])
+  const d = xy.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+  const last = xy[xy.length - 1]
+  const col = cls === 'neg' ? '#F26D6D' : '#57D9A3'
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><path d="${d}" fill="none" stroke="#555A62" stroke-width="1"/><rect x="${last[0] - 2}" y="${last[1] - 2}" width="4" height="4" fill="${col}"/></svg>`
+}
+const toks = (s) =>
+  s
+    .split(' ')
+    .map((w) => {
+      const m = w.match(/^\[(\d)\](.*)$/)
+      if (w.startsWith('{ca}')) return `<span class="ca">${w.slice(4)}</span>`
+      return m ? `<span class="w${m[1]}">${m[2]}</span>` : `<span>${w}</span>`
+    })
+    .join('')
+
+const A1 = '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr'
+const A2 = '9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump'
+const A3 = 'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC'
+const A4 = '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R'
+
+const NAV = [
+  ['akis', 'Akış'],
+  ['onay', 'Onay', '3'],
+  ['pozisyonlar', 'Pozisyonlar'],
+  ['emirler', 'Emirler'],
+  ['---', 'GİRDİLER'],
+  ['kaynaklar', 'Kaynaklar'],
+  ['kontrol', 'Token Kontrol'],
+  ['---', 'MODEL'],
+  ['kurallar', 'Kurallar'],
+  ['ayarlar', 'Ayarlar'],
+  ['kullanicilar', 'Kullanıcılar']
+]
+
+function shell(active, title, body, opts = {}) {
+  let ix = 0
+  const nav = NAV.map(([k, label, count]) => {
+    if (k === '---') return `<div class="nav-sep">${label}</div>`
+    ix++
+    const on = active === k || (active.startsWith('ayarlar') && k === 'ayarlar')
+    return `<a class="${on ? 'on' : ''}" href="#${k}"><span class="ix">${String(ix).padStart(2, '0')}</span><span>${label}</span>${count ? `<span class="count">${count}</span>` : ''}</a>`
+  }).join('')
+  return `
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">memebot<span class="caret"></span></div>
+      <nav class="nav">${nav}</nav>
+      <div class="rail-foot">
+        <span class="who">civan</span>
+        <span class="faint mono" style="font-size:11px">FOUNDER · ÇIKIŞ</span>
+      </div>
+    </aside>
+    <header class="top">
+      <h1>${title}</h1>
+      <div class="cmd"><span class="prompt">&gt;</span><span>Adres, @hesap ya da komut yazın</span><span class="kbd">CTRL K</span></div>
+      <div class="right-side">
+        ${opts.topRight ?? `<span class="tag">DENEME</span><span class="row mute" style="font-size:12px"><span class="pip pos"></span>Motor</span><button class="btn sm danger">Tümünü durdur</button>`}
+      </div>
+    </header>
+    <main class="main ${opts.panel ? 'with-panel' : ''}">${body}</main>
+    <footer class="status">
+      <span class="row"><span class="pip pos"></span>Bağlı</span>
+      <span class="row"><span class="pip pos"></span>Motor · vps-fra1</span>
+      <span>GMGN 84 ms</span>
+      <span>Deneme modu</span>
+      <span>Ücret <b style="color:var(--ink)">P1</b> P2 P3</span>
+      <span class="row"><span class="thinking"><i></i><i></i><i></i></span><span class="ai">2 token değerlendiriliyor</span></span>
+      <span class="push">Web · v0.2.0</span>
+    </footer>
+  </div>`
+}
+
+// ---------------------------------------------------------------- sayfalar
+const PAGES = {}
+
+PAGES.giris = () => `
+<div class="login">
+  <div class="left">
+    <div class="brand" style="padding:0">memebot<span class="caret"></span></div>
+    <div style="display:grid;gap:20px;max-width:460px">
+      <span class="over">Sinyal · Çıkarım · Emir</span>
+      <h1 class="display">Her token bir girdi.<br/>Her karar bir çıkarım.</h1>
+      <p class="mute" style="font-size:14px;max-width:400px">Telegram ve X'ten gelen sinyalleri okur, güvenliğini puanlar, kurallarınıza göre karar verir. Hesaplar sadece founder tarafından açılır.</p>
+      ${trace(['@caller', '0.86', 'manuel', 'bekliyor', '—'], 3)}
+    </div>
+    <div class="row faint mono" style="font-size:11px;gap:18px"><span>v0.2.0</span><span>GMGN OpenAPI</span><span>Supabase</span></div>
+  </div>
+  <div class="pane-r">
+    <div class="form">
+      <div style="display:grid;gap:6px">
+        <h2 style="font:500 22px/1.2 var(--sans);letter-spacing:-0.015em;margin:0">Giriş</h2>
+        <p class="mute">Hesabınız yoksa founder'dan isteyin.</p>
+      </div>
+      <div class="field"><label>E-posta</label><div class="input focus">civan@ornek.com</div></div>
+      <div class="field"><label>Parola</label><div class="input mono">••••••••••••</div></div>
+      <button class="btn primary" style="height:36px;justify-content:center">Giriş yap <span class="kbd">ENTER</span></button>
+      <p class="faint mono" style="font-size:11px">Açık kayıt kapalı · yeni hesaplar pasif açılır</p>
+    </div>
+  </div>
+</div>`
+
+function post({ name, handle, src, time, lat, text, quote, media, isNew, ca, score, scoreCls, inferText, sugg, stepIx, steps }) {
+  return `
+  <article class="post ${isNew ? 'new' : ''}">
+    <div class="post-head">
+      <div class="avatar">${name.slice(0, 2).toUpperCase()}</div>
+      <div style="display:grid;gap:2px">
+        <div class="row"><span class="name">${name}</span><span class="mute">@${handle}</span><span class="src">${src}</span></div>
+        <span class="mono faint" style="font-size:11px">${time} · alındı +${lat}</span>
+      </div>
+      <div class="row" style="margin-left:auto">
+        ${isNew ? '<span class="tag ai">YENİ</span>' : ''}
+        <button class="btn xs">Gizle</button>
+        <button class="btn sm primary">Deploy</button>
+      </div>
+    </div>
+    <div class="post-body">
+      <div class="tokens">${toks(text)}</div>
+      ${quote ? `<div class="quote"><span class="mono faint" style="font-size:11px">YANITLANAN</span><div>${quote}</div></div>` : ''}
+      ${media ? `<div class="media">GÖRSEL · 1200×675</div>` : ''}
+    </div>
+    ${ca ? `
+    <div class="post-ai">
+      <div class="row between">
+        <div class="row" style="gap:12px">${short(ca)}<span class="over">GÜVEN</span>${conf(score, scoreCls)}<span class="score ${scoreCls}">${(score / 20).toFixed(2)}</span></div>
+        <div class="row"><button class="btn xs">Kontrol</button><button class="btn xs">Kopyala</button><button class="btn sm primary">Satın al 0.1 SOL <span class="kbd">B</span></button></div>
+      </div>
+      <div class="infer"><span class="ai">çıkarım</span> ${inferText}</div>
+      ${trace(steps, stepIx)}
+    </div>` : ''}
+    ${sugg ? `<div class="sugg">${sugg.map(([n, t, mc, c]) => `<div><div class="mono-logo">${t.slice(0, 2)}</div><div style="display:grid;gap:3px"><span class="t">${n}</span><span class="s">$${t} · MC ${mc}</span></div><div class="row"><span class="score ${c > 14 ? 'pos' : c > 9 ? 'warn' : 'neg'}">${(c / 20).toFixed(2)}</span><button class="btn xs">Satın al</button></div></div>`).join('')}</div>` : ''}
+    <div class="post-foot">
+      <span class="link">Sessize al</span><span class="link">Metni kopyala</span><span class="link">Görsel olarak kaydet</span><span class="link">Sabitle</span>
+      <span class="link" style="margin-left:auto">X'te aç</span>
+    </div>
+  </article>`
+}
+
+PAGES.akis = () =>
+  shell(
+    'akis',
+    'Akış',
+    `
+  <div class="feed">
+    <div class="row between">
+      <div class="seg"><span class="on">Tümü</span><span>X</span><span>Telegram</span><span>Sadece CA</span></div>
+      <div class="row mute mono" style="font-size:11px"><span class="pip pos"></span>TG 12 kanal<span class="pip pos" style="margin-left:10px"></span>X 3 hesap</div>
+    </div>
+    ${post({
+      name: 'Trench Caller', handle: 'trenchcaller', src: 'TG', time: '23:32:33', lat: '0.4 sn', isNew: true,
+      text: `yeni [3]gem çıktı, [2]dev [2]renounce etmiş, [1]likidite [1]kilitli {ca}${A1.slice(0, 6)}…${A1.slice(-4)}`,
+      ca: A1, score: 17, scoreCls: 'pos', stepIx: 3, steps: ['TG 0.4s', '0.86', 'manuel', 'bekliyor'],
+      inferText: 'mint bırakılmış · rug 0.08 · top10 %22 · likidite $41K · <span class="pos">GEÇTİ</span>'
+    })}
+    ${post({
+      name: 'Governor Office', handle: 'CAgovernor', src: 'X', time: '23:32:12', lat: '1.8 sn', media: true,
+      text: `LIVE SOON: speaking at the [3]UN [3]Secretary-General [2]special [1]session on [1]climate action`,
+      sugg: [['Secretary-General', 'SECRETARY', '412K', 16], ['UN Secretary General', 'USG', '88K', 11], ['Secretary', 'SCGN', '19K', 6]]
+    })}
+    ${post({
+      name: 'Krak', handle: 'Krak', src: 'X', time: '23:32:01', lat: '2.1 sn',
+      text: `Imagine the [2]intern typing it out 1 by 1`, quote: 'Shit i hit "see more" and was stuck in a 30 min doom scroll <b style="color:var(--ink)">$DOG</b>',
+      sugg: [['DOG', 'DOG', '1.2M', 18], ['The Original Doge', 'OGDOGE', '230K', 13], ['dog wif hat', 'WIF', '2.1B', 19]]
+    })}
+  </div>`
+  )
+
+PAGES.sinyaller = () =>
+  shell(
+    'akis',
+    'Akış · Sinyaller',
+    `
+  <div class="stack" style="max-width:1120px">
+    <div class="row between"><div class="seg"><span>Kartlar</span><span class="on">Sinyaller</span></div><span class="mono faint" style="font-size:11px">son 1 saat · 48 sinyal · 31 tekil token</span></div>
+    <div class="card flush">
+      <table>
+        <thead><tr><th>Zaman</th><th>Kaynak</th><th>Token</th><th>Güven</th><th class="num">Çağrı</th><th class="num">Gecikme</th><th>Karar</th><th></th></tr></thead>
+        <tbody>
+          ${[
+            ['23:32:33', 'Trench Caller', 'TG', A1, 17, 'pos', 3, '0.4 sn', '<span class="tag ai">ONAYDA</span>'],
+            ['23:31:58', '@solwhale', 'X', A2, 12, 'warn', 1, '1.6 sn', '<span class="tag warn">UYARI</span>'],
+            ['23:30:12', 'Alpha Room', 'TG', A3, 5, 'neg', 2, '0.7 sn', '<span class="tag neg">RED · rug 0.61</span>'],
+            ['23:28:40', 'Trench Caller', 'TG', A4, 18, 'pos', 4, '0.3 sn', '<span class="tag pos">ALINDI</span>'],
+            ['23:27:05', '@caller_x', 'X', A1, 17, 'pos', 1, '2.4 sn', '<span class="tag">TEKRAR</span>'],
+            ['23:25:51', 'Manuel', 'EL', A2, 12, 'warn', 1, '—', '<span class="tag warn">UYARI</span>']
+          ]
+            .map(([t, s, src, a, c, cc, n, l, k]) => `<tr><td class="mono mute">${t}</td><td><span class="row">${s}<span class="tag" style="padding:2px 4px">${src}</span></span></td><td>${short(a)}</td><td><span class="row">${conf(c, cc)}<span class="score ${cc}">${(c / 20).toFixed(2)}</span></span></td><td class="num">${n > 1 ? `<b class="ai">${n}×</b>` : '1'}</td><td class="num mute">${l}</td><td>${k}</td><td class="right"><button class="btn xs">Kontrol</button></td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`
+  )
+
+PAGES.onay = () =>
+  shell(
+    'onay',
+    'Onay',
+    `
+  <div class="stack" style="max-width:880px">
+      <div class="infer"><span class="ai">mod: manuel onay</span> · güvenlikten geçen tokenlar 10 dk bekler · işlem: <b>DENEME</b> — para harcanmaz</div>
+      ${[
+        ['WIFCAT', 'Wif Cat', A1, 17, 'pos', '7:42', '$184K', '$41K', '1.284', 'pump', [], 'mint bırakılmış · rug 0.08 · top10 %22 · sonuç GEÇTİ'],
+        ['GEMX', 'Gem X', A4, 12, 'warn', '4:05', '$62K', '$12K', '402', 'bonk', [['Insider payı', 'bilinmiyor', 'warn'], ['Top 10', '%31', 'warn']], 'veri eksik: insider · top10 sınırda · sonuç UYARI']
+      ]
+        .map(
+          ([t, n, a, c, cc, left, mc, liq, h, lp, reasons, inf]) => `
+      <div class="card stack" style="gap:14px">
+        <div class="row between">
+          <div class="row" style="gap:12px">
+            <div class="mono-logo">${t.slice(0, 2)}</div>
+            <div style="display:grid;gap:4px"><div class="row"><b style="font-weight:500">$${t}</b><span class="mute">${n}</span><span class="tag">${lp}</span></div>${addr(a)}</div>
+          </div>
+          <div style="text-align:right;display:grid;gap:6px"><span class="over">KALAN</span><span class="big" style="font-size:22px">${left}</span></div>
+        </div>
+        <div class="grid-4">
+          <div class="metric"><span class="over">Güven</span><span class="row">${conf(c, cc)}<span class="score ${cc}">${(c / 20).toFixed(2)}</span></span></div>
+          <div class="metric"><span class="over">Piyasa değeri</span><span class="mono">${mc}</span></div>
+          <div class="metric"><span class="over">Likidite</span><span class="mono">${liq}</span></div>
+          <div class="metric"><span class="over">Holder</span><span class="mono">${h}</span></div>
+        </div>
+        ${reasons.length ? `<div class="row">${reasons.map(([k, v, cl]) => `<span class="tag ${cl}">${k} · ${v}</span>`).join('')}</div>` : ''}
+        <div class="infer"><span class="ai">çıkarım</span> ${inf}</div>
+        ${trace(['TG 0.4s', (c / 20).toFixed(2), 'manuel', 'bekliyor'], 3)}
+        <div class="row between">
+          <div class="row"><button class="btn primary">Dene 0.1 SOL <span class="kbd">1</span></button><button class="btn">0.25 SOL <span class="kbd">2</span></button><button class="btn">0.5 SOL <span class="kbd">3</span></button><button class="btn">Reddet <span class="kbd">R</span></button></div>
+          <div class="row"><button class="btn sm">Ayrıntı</button><button class="btn sm">GMGN</button></div>
+        </div>
+      </div>`
+        )
+        .join('')}
+      <div class="section-head"><span class="over">Son kararlar</span><span class="meta">bugün 14</span></div>
+      <div class="card flush"><table><tbody>
+        ${[['MOODENG', 'Onaylandı', 'pos', '0.25 SOL', '23:12'], ['PNUT2', 'Reddedildi', '', '—', '23:05'], ['CHILL', 'Süresi doldu', 'warn', '—', '22:58'], ['GOAT', 'Otomatik', 'ai', '0.05 SOL', '22:41']]
+          .map(([t, s, c, a, z]) => `<tr><td>$${t}</td><td><span class="tag ${c}">${s}</span></td><td class="num">${a}</td><td class="num mute">${z}</td></tr>`)
+          .join('')}
+      </tbody></table></div>
+  </div>`
+  )
+
+PAGES.pozisyonlar = () =>
+  shell(
+    'pozisyonlar',
+    'Pozisyonlar',
+    `
+  <div class="stack" style="max-width:1180px">
+    <div class="grid-4">
+      <div class="card metric"><span class="over">Açık toplam</span><span class="big pos">+0.412</span><span class="sub">SOL · +%18.6</span></div>
+      <div class="card metric"><span class="over">Bugün gerçekleşen</span><span class="big neg">−0.081</span><span class="sub">SOL · 6 işlem</span></div>
+      <div class="card metric"><span class="over">Açık pozisyon</span><span class="big">4<span class="mute" style="font-size:16px"> / 5</span></span><span class="sub">sınır Kurallar'da</span></div>
+      <div class="card metric"><span class="over">Günlük harcama</span><span class="big">1.10<span class="mute" style="font-size:16px"> / 2</span></span><span class="sub">SOL</span></div>
+    </div>
+    <div class="card flush">
+      <div class="card-head" style="padding:14px 16px 4px"><span class="over">Açık · 4</span><button class="btn sm danger">Tümünü sat</button></div>
+      <table>
+        <thead><tr><th>Token</th><th>İz (1 sa)</th><th class="num">Giriş</th><th class="num">Şimdi</th><th class="num">Maliyet</th><th class="num">Kâr / zarar</th><th>TP / SL</th><th></th></tr></thead>
+        <tbody>
+          ${[
+            ['WIFCAT', A1, [3, 4, 4, 5, 7, 6, 8, 9, 11, 10, 13, 15], '0.0001284', '0.0001902', '0.25', '+0.120', '+%48.1', 'pos', 'TP +%100 · SL −%40', false],
+            ['GEMX', A4, [9, 8, 8, 7, 6, 7, 5, 4, 5, 4, 3, 3], '0.0000412', '0.0000301', '0.10', '−0.027', '−%26.9', 'neg', 'TP +%100 · SL −%40', false],
+            ['MOODENG', A2, [2, 3, 3, 5, 5, 6, 6, 7, 6, 8, 9, 9], '0.0021', '0.0034', '0.25', '+0.155*', '+%61.9', 'pos', '%50 satıldı (GMGN)', false],
+            ['TEST', A3, [5, 5, 6, 5, 6, 6, 7, 6, 7, 7, 8, 8], '0.0000091', '0.0000118', '0.10', '+0.029', '+%29.6', 'pos', 'deneme', true]
+          ]
+            .map(([t, a, s, e, n, c, p, pct, cls, tp, dry]) => `<tr>
+            <td><div class="row" style="gap:10px"><div class="mono-logo" style="width:28px;height:28px">${t.slice(0, 2)}</div><div style="display:grid;gap:3px"><span class="row">$${t}${dry ? '<span class="tag">DENEME</span>' : ''}</span>${short(a)}</div></div></td>
+            <td>${spark(s, cls)}</td><td class="num mute">$${e}</td><td class="num">$${n}</td><td class="num">${c} SOL</td>
+            <td class="num ${cls}">${p} SOL<div class="mono" style="font-size:11px;opacity:.8">${pct}</div></td>
+            <td class="mono mute" style="font-size:11px">${tp}</td>
+            <td class="right" style="white-space:nowrap"><button class="btn xs">%25</button> <button class="btn xs">%50</button> <button class="btn xs danger">%100</button></td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+      <div class="mono faint" style="font-size:11px;padding:10px 16px;border-top:1px solid var(--line)">* GMGN'de tetiklenen satışın getirisi o anki fiyattan tahmin edildi</div>
+    </div>
+  </div>`
+  )
+
+PAGES.emirler = () =>
+  shell(
+    'emirler',
+    'Emirler',
+    `
+  <div class="stack" style="max-width:1120px">
+    <div class="row between"><div class="seg"><span class="on">Emirler</span><span>Deploy'lar</span></div><div class="seg"><span class="on">Tümü</span><span>Gerçek</span><span>Deneme</span></div></div>
+    <div class="card flush">
+      <table>
+        <thead><tr><th>Zaman</th><th>İşlem</th><th>Token</th><th class="num">Miktar</th><th>Yaşam döngüsü</th><th>Zincir kaydı</th></tr></thead>
+        <tbody>
+          ${[
+            ['23:33:02', 'Alım', 'WIFCAT', '0.250 SOL', 4, 'pos', 'Kesinleşti', '5KtP…q9Wz'],
+            ['23:31:44', 'Satış', 'GEMX', '%50', 2, 'warn', 'İşleniyor', '—'],
+            ['23:20:10', 'Alım', 'CHILL', '0.100 SOL', 4, 'neg', 'Başarısız · slippage', '—'],
+            ['23:12:51', 'Alım', 'MOODENG', '0.250 SOL', 4, 'pos', 'Kesinleşti', '3xLm…7aQe'],
+            ['22:58:03', 'Alım', 'TEST', '0.100 SOL', 4, '', 'Deneme · teklif', '—']
+          ]
+            .map(
+              ([z, k, t, m, st, c, label, h]) => `<tr><td class="mono mute">${z}</td><td>${k}</td><td>$${t}</td><td class="num">${m}</td>
+            <td><div class="row" style="gap:10px"><span class="row" style="gap:3px">${['HAZIR', 'GÖNDERİLDİ', 'İŞLENİYOR', 'KESİN'].map((s, i) => `<span style="width:22px;height:4px;border-radius:2px;background:${i < st ? (c === 'neg' && i === 3 ? 'var(--neg)' : c === 'pos' ? 'var(--pos)' : c === 'warn' ? 'var(--warn)' : 'var(--mute)') : 'var(--line-2)'}" title="${s}"></span>`).join('')}</span><span class="${c}" style="font-size:12px">${label}</span></div></td>
+            <td class="mono">${h !== '—' ? `<span style="color:var(--ink-2)">${h}</span>` : '<span class="faint">—</span>'}</td></tr>`
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+    <p class="mono faint" style="font-size:11px">Yaşam döngüsü: HAZIR · GÖNDERİLDİ · İŞLENİYOR · KESİN — gönderim ile zincirde kesinleşme ayrı gösterilir</p>
+  </div>`
+  )
+
+PAGES.kaynaklar = () =>
+  shell(
+    'kaynaklar',
+    'Kaynaklar',
+    `
+  <div class="grid-2" style="max-width:1120px;align-items:start">
+    <div class="card stack">
+      <div class="card-head" style="margin:0"><span class="over">Telegram</span><span class="row mute" style="font-size:12px"><span class="pip pos"></span>@civan_reader</span></div>
+      <div class="infer"><span class="ai">salt okur</span> · mesaj göndermez · oturum motor kasasında şifreli</div>
+      <div class="input"><span class="faint">Kanal ya da grup ara</span></div>
+      <table><tbody>
+        ${[['Trench Caller', 'kanal', true, '41'], ['Alpha Room', 'grup', true, '17'], ['SOL Gems Daily', 'kanal', true, '9'], ['Pump Watch', 'kanal', false, '—'], ['Degen Lounge', 'grup', false, '—']]
+          .map(([n, k, on, c]) => `<tr><td>${n}</td><td class="mute">${k}</td><td class="num mute">${c} sinyal/gün</td><td class="right"><button class="btn xs ${on ? '' : 'primary'}">${on ? 'İzleniyor' : 'İzle'}</button></td></tr>`)
+          .join('')}
+      </tbody></table>
+    </div>
+    <div class="card stack">
+      <div class="card-head" style="margin:0"><span class="over">X · XFlux</span><span class="row mute" style="font-size:12px"><span class="pip pos"></span>15 sn'de bir</span></div>
+      <div class="grid-2">
+        <div class="metric"><span class="over">Kalan kota</span><span class="big" style="font-size:22px">128.402</span><span class="sub">bu ay · Starter</span></div>
+        <div class="metric"><span class="over">Yoklayan</span><span class="mono" style="font-size:13px">vps-fra1</span><span class="sub">tek motor kuralı</span></div>
+      </div>
+      <table><tbody>
+        ${[['@trenchcaller', true, '3 yeni'], ['@solwhale', true, '—'], ['@caller_x', true, '1 yeni']]
+          .map(([n, on, h]) => `<tr><td>${n}</td><td class="mono mute">${h}</td><td class="right"><button class="btn xs">${on ? 'İzleniyor' : 'İzle'}</button></td></tr>`)
+          .join('')}
+      </tbody></table>
+      <p class="faint" style="font-size:12px">İzleyiciler XFlux panelinden kurulur · ücretsiz plan 5 dk gecikmeli</p>
+    </div>
+    <div class="card stack" style="grid-column:1 / 3">
+      <div class="card-head" style="margin:0"><span class="over">Elle girdi</span><span class="faint mono" style="font-size:11px">Telegram/X olmadan test</span></div>
+      <div class="row"><div class="input" style="flex:1"><span class="faint">Token adresi ya da mesaj yapıştırın</span></div><button class="btn primary">Akışa ekle <span class="kbd">ENTER</span></button></div>
+    </div>
+  </div>`
+  )
+
+PAGES.kontrol = () =>
+  shell(
+    'kontrol',
+    'Token Kontrol',
+    `
+  <div class="stack" style="max-width:880px">
+    <div class="input area focus" style="min-height:64px">${A1}</div>
+    <div class="card stack">
+      <div class="row between">
+        <div class="row" style="gap:12px"><div class="mono-logo">WI</div><div style="display:grid;gap:4px"><div class="row"><b style="font-weight:500">$WIFCAT</b><span class="mute">Wif Cat</span><span class="tag">pump · DEX'te</span></div>${addr(A1)}</div></div>
+        <div style="text-align:right;display:grid;gap:8px"><span class="over">Güven</span><span class="row">${conf(17, 'pos')}<span class="big pos" style="font-size:22px">0.86</span></span></div>
+      </div>
+      <div class="grid-4">
+        <div class="metric"><span class="over">Fiyat</span><span class="mono">$0.0001284</span></div>
+        <div class="metric"><span class="over">Piyasa değeri</span><span class="mono">$184.2K</span></div>
+        <div class="metric"><span class="over">Likidite</span><span class="mono">$41.0K</span></div>
+        <div class="metric"><span class="over">Holder</span><span class="mono">1.284</span></div>
+      </div>
+      <div class="infer"><span class="ai">çıkarım</span> 9 kontrolden 8'i geçti · 1 veri eksik (insider) · sonuç <span class="pos">GEÇTİ</span></div>
+    </div>
+    <div class="card flush">
+      <table>
+        <thead><tr><th>Kontrol</th><th class="num">Değer</th><th class="num">Eşik</th><th>Katkı</th><th class="num">Sonuç</th></tr></thead>
+        <tbody>
+          ${[['Mint yetkisi bırakılmış', 'evet', 'evet', 20, 'pos'], ['Freeze yetkisi bırakılmış', 'evet', 'evet', 20, 'pos'], ['Rug riski', '0.08', '≤ 0.30', 18, 'pos'], ['Top 10 holder', '%22.4', '≤ %35', 15, 'pos'], ['Dev ekip payı', '%2.1', '≤ %10', 18, 'pos'], ['Insider payı', 'bilinmiyor', '≤ %20', 8, 'warn'], ['Bundler hacmi', '%11.0', '≤ %50', 17, 'pos'], ['Alım / satım vergisi', '%0', '%0', 20, 'pos'], ['Likidite', '$41.0K', '≥ $5K', 19, 'pos']]
+            .map(([k, v, e, c, cl]) => `<tr><td>${k}</td><td class="num">${v}</td><td class="num mute">${e}</td><td>${conf(c, cl)}</td><td class="num"><span class="tag ${cl}">${cl === 'pos' ? 'GEÇTİ' : 'UYARI'}</span></td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`
+  )
+
+PAGES.kurallar = () =>
+  shell(
+    'kurallar',
+    'Kurallar',
+    `
+  <div class="stack" style="max-width:960px">
+    <div class="card stack">
+      <div class="section-head" style="margin:0"><span class="over">Mod</span></div>
+      <div class="grid-3">
+        ${[['İzle', 'Kontrol edilir, onaya düşmez', false], ['Manuel onay', 'Geçenler Onay ekranında bekler', true], ['Otomatik', 'Onaysız alım · zarar sınırıyla kendini kapatır', false]]
+          .map(([t, d, on]) => `<div style="border:1px solid ${on ? 'var(--ai)' : 'var(--line)'};background:${on ? 'var(--ai-dim)' : 'var(--bg)'};border-radius:var(--r-m);padding:12px;display:grid;gap:6px"><b style="font-weight:500">${t}</b><span class="mute" style="font-size:12px">${d}</span></div>`)
+          .join('')}
+      </div>
+      <div class="row between" style="border:1px solid rgba(242,109,109,.35);border-radius:var(--r-m);padding:12px">
+        <div style="display:grid;gap:4px"><b style="font-weight:500">Gerçek işlem</b><span class="mute" style="font-size:12px">Kapalı: deneme modu — sadece GMGN fiyat teklifi alınır, para harcanmaz</span></div>
+        <span class="switch"></span>
+      </div>
+    </div>
+    <div class="card stack">
+      <div class="section-head" style="margin:0"><span class="over">Güvenlik eşikleri</span><span class="meta">model girdisi</span></div>
+      <div class="grid-3">
+        ${[['Maks. rug riski', '0.30', ''], ['Maks. top 10', '35', '%'], ['Maks. dev payı', '10', '%'], ['Maks. insider', '20', '%'], ['Maks. bundler', '50', '%'], ['Maks. vergi', '0', '%'], ['Min. likidite', '5.000', '$'], ['Min. piyasa değeri', '0', '$'], ['Maks. piyasa değeri', '0', '$']]
+          .map(([k, v, u]) => `<div class="field"><label>${k}</label><div class="input num"><span>${v}</span><span class="unit">${u}</span></div></div>`)
+          .join('')}
+      </div>
+      <div class="row" style="gap:20px">${['Mint bırakılmış olmalı', 'Freeze bırakılmış olmalı', 'Wash trading reddet']
+        .map((t) => `<span class="row"><span class="switch on"></span>${t}</span>`)
+        .join('')}</div>
+    </div>
+    <div class="grid-2">
+      <div class="card stack">
+        <div class="section-head" style="margin:0"><span class="over">Limitler</span></div>
+        ${[['İşlem başı maks.', '1.00', 'SOL'], ['Günlük maks. harcama', '2.00', 'SOL'], ['Maks. açık pozisyon', '5', ''], ['Günlük zarar sınırı', '0.50', 'SOL']]
+          .map(([k, v, u]) => `<div class="field"><label>${k}</label><div class="input num"><span>${v}</span><span class="unit">${u}</span></div></div>`)
+          .join('')}
+      </div>
+      <div class="card stack">
+        <div class="section-head" style="margin:0"><span class="over">TP / SL</span><span class="meta">GMGN'de kurulur</span></div>
+        <table><thead><tr><th>Tür</th><th class="num">Fiyat</th><th class="num">Sat</th></tr></thead><tbody>
+          <tr><td>Kâr al</td><td class="num pos">+%100</td><td class="num">%50</td></tr>
+          <tr><td>Kâr al</td><td class="num pos">+%300</td><td class="num">%100</td></tr>
+          <tr><td>Zarar durdur</td><td class="num neg">−%40</td><td class="num">%100</td></tr>
+        </tbody></table>
+        <button class="btn sm" style="justify-self:start">Koşul ekle</button>
+      </div>
+    </div>
+    <div class="row"><button class="btn primary">Kaydet <span class="kbd">CTRL S</span></button><button class="btn">Varsayılanlara dön</button></div>
+  </div>`
+  )
+
+const settingsShell = (on, body) => `
+  <div class="settings" style="max-width:1120px">
+    <nav class="subnav">
+      <span class="grp">MOTOR</span>
+      ${[['ayarlar', 'Motor ve GMGN'], ['ayarlar-cuzdan', 'Cüzdanlar']].map(([k, l]) => `<a class="${on === k ? 'on' : ''}" href="#${k}">${l}</a>`).join('')}
+      <span class="grp">TAKİP</span>
+      ${[['ayarlar-hesap', 'Hesaplar'], ['ayarlar-kelime', 'Anahtar kelimeler'], ['ayarlar-gorunum', 'Görünüm']].map(([k, l]) => `<a class="${on === k ? 'on' : ''}" href="#${k}">${l}</a>`).join('')}
+      <span class="grp">İŞLEM</span>
+      ${[['ayarlar-preset', 'Ücret preset\'leri'], ['ayarlar-deploy', 'Deploy'], ['ayarlar-kisayol', 'Kısayollar']].map(([k, l]) => `<a class="${on === k ? 'on' : ''}" href="#${k}">${l}</a>`).join('')}
+    </nav>
+    <div class="stack">${body}</div>
+  </div>`
+
+PAGES.ayarlar = () =>
+  shell(
+    'ayarlar',
+    'Ayarlar',
+    settingsShell(
+      'ayarlar',
+      `
+    <div class="card stack">
+      <div class="card-head" style="margin:0"><span class="over">Motor</span><span class="row" style="font-size:12px"><span class="pip pos"></span>Çalışıyor · 3 gün 4 sa</span></div>
+      <div class="grid-4">
+        <div class="metric"><span class="over">Sunucu</span><span class="mono">vps-fra1</span></div>
+        <div class="metric"><span class="over">Sürüm</span><span class="mono">0.2.0</span></div>
+        <div class="metric"><span class="over">GMGN gecikme</span><span class="mono">84 ms</span></div>
+        <div class="metric"><span class="over">Kuyruk</span><span class="mono">2 / 5 istek/sn</span></div>
+      </div>
+      <div class="infer"><span class="ai">kasa</span> · anahtarlar arayüzden motora mühürlü zarfla gider, motor kasasında şifreli durur</div>
+    </div>
+    <div class="card stack">
+      <div class="card-head" style="margin:0"><span class="over">GMGN API</span><span class="tag pos">BAĞLI</span></div>
+      <div class="grid-2">
+        <div class="field"><label>API key</label><div class="input mono"><span class="faint">kayıtlı · son 4: 9f2a</span></div></div>
+        <div class="field"><label>Plan</label><div class="seg" style="width:max-content"><span class="on">Free · 5/sn</span><span>Plus · 20/sn</span><span>Pro · 50/sn</span></div></div>
+      </div>
+      <div class="field"><label>İmza anahtarı (Ed25519, cüzdan anahtarı değil)</label><div class="input area"><span class="faint">-----BEGIN PRIVATE KEY----- · kasada · gösterilmez</span></div></div>
+      <div class="row"><button class="btn">Bağlantıyı test et</button><button class="btn">Anahtarı değiştir</button><button class="btn danger">Sil</button></div>
+    </div>`
+    )
+  )
+
+PAGES['ayarlar-kelime'] = () =>
+  shell(
+    'ayarlar',
+    'Ayarlar · Anahtar kelimeler',
+    settingsShell(
+      'ayarlar-kelime',
+      `
+    <div class="card stack">
+      <div class="card-head" style="margin:0"><span class="over">Dikkat ağırlıkları</span><span class="faint mono" style="font-size:11px">vurgulanan kelime öneri ızgarasına arama terimi olur</span></div>
+      <div class="tokens" style="padding:10px;border:1px solid var(--line);border-radius:var(--r-m);background:var(--bg)">${toks('LIVE SOON: [3]$DOG [2]"doom scroll" [1]coin [2]deploy is [1]named after the [3]asteroid')}</div>
+      <table>
+        <thead><tr><th>Kelime</th><th>Eşleşme</th><th>Ağırlık</th><th>Ses</th><th>Bildirim</th><th></th></tr></thead>
+        <tbody>
+          ${[['$TICKER', 'hazır', 3, true, true], ['"tırnak içi"', 'hazır', 2, false, false], ['asteroid', 'tam kelime', 3, true, true], ['deploy', 'kısmi', 2, false, true], ['coin', 'kısmi', 1, false, false], ['inu', 'tam kelime', 1, false, false]]
+            .map(([k, m, w, s, b]) => `<tr><td class="mono">${k}</td><td class="mute">${m}</td><td><span class="row" style="gap:3px">${[1, 2, 3].map((i) => `<span style="width:16px;height:6px;border-radius:2px;background:${i <= w ? 'var(--ai)' : 'var(--line-2)'};opacity:${i <= w ? 0.4 + i * 0.2 : 1}"></span>`).join('')}</span></td><td><span class="switch ${s ? 'on' : ''}"></span></td><td><span class="switch ${b ? 'on' : ''}"></span></td><td class="right"><button class="btn xs">Düzenle</button></td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+      <div class="row"><div class="input" style="flex:1"><span class="faint">Yeni kelime</span></div><div class="seg"><span class="on">Kısmi</span><span>Tam</span><span>Regex</span></div><button class="btn primary">Ekle</button></div>
+    </div>`
+    )
+  )
+
+PAGES['ayarlar-preset'] = () =>
+  shell(
+    'ayarlar',
+    'Ayarlar · Ücret preset\'leri',
+    settingsShell(
+      'ayarlar-preset',
+      `
+    <div class="row between"><div class="seg"><span class="on">P1 · hızlı</span><span>P2 · dengeli</span><span>P3 · ucuz</span></div><span class="row mute" style="font-size:12px">Etkin preset <span class="kbd">F1</span><span class="kbd">F2</span><span class="kbd">F3</span></span></div>
+    <div class="grid-3">
+      ${[['Alım', '0.0010', '0.0020', '30', true], ['Satış', '0.0010', '0.0015', '35', true], ['Deploy', '0.0010', '0.0010', 'oto', true]]
+        .map(([t, p, tip, s, mev]) => `<div class="card stack">
+          <div class="section-head" style="margin:0"><span class="over">${t}</span></div>
+          <div class="field"><label>Öncelik ücreti</label><div class="input num"><span>${p}</span><span class="unit">SOL</span></div></div>
+          <div class="field"><label>Tip</label><div class="input num"><span>${tip}</span><span class="unit">SOL</span></div></div>
+          <div class="field"><label>Slippage</label><div class="input num"><span>${s}</span><span class="unit">%</span></div></div>
+          <span class="row"><span class="switch ${mev ? 'on' : ''}"></span>Anti-MEV</span>
+        </div>`)
+        .join('')}
+    </div>
+    <div class="infer"><span class="ai">tahmini maliyet</span> P1 alım başına ≈ 0.0030 SOL ücret · otomatik mod P2 kullanır</div>`
+    )
+  )
+
+PAGES['ayarlar-gorunum'] = () =>
+  shell(
+    'ayarlar',
+    'Ayarlar · Görünüm',
+    settingsShell(
+      'ayarlar-gorunum',
+      `
+    <div class="tabs"><span class="on">Tema</span><span>Yerleşim</span><span>Akış</span><span>Deploy</span></div>
+    <div class="grid-4">
+      ${[['Latent', '#08090A', '#0F1012', '#B6A6FF', true], ['Grafit', '#0B0B0C', '#141416', '#ECEDEE', false], ['Gece', '#070B12', '#0D131D', '#8FB3FF', false], ['Kağıt', '#F4F4F2', '#FFFFFF', '#5B4FD6', false]]
+        .map(([n, bg, c, a, on]) => `<div style="border:1px solid ${on ? 'var(--ai)' : 'var(--line)'};border-radius:var(--r-l);overflow:hidden">
+          <div style="height:84px;background:${bg};padding:10px;display:grid;gap:6px;align-content:start"><div style="height:10px;width:60%;border-radius:2px;background:${c};border:1px solid rgba(128,128,128,.25)"></div><div style="height:10px;width:40%;border-radius:2px;background:${c};border:1px solid rgba(128,128,128,.25)"></div><div style="height:6px;width:28px;border-radius:2px;background:${a}"></div></div>
+          <div class="row between" style="padding:8px 10px;border-top:1px solid var(--line)"><span>${n}</span>${on ? '<span class="tag ai">ETKİN</span>' : ''}</div></div>`)
+        .join('')}
+    </div>
+    <div class="card stack">
+      <div class="section-head" style="margin:0"><span class="over">Özel palet</span><span class="meta">JSON olarak paylaşılır</span></div>
+      <div class="grid-3">
+        ${[['Zemin', '#08090A'], ['Kart', '#0F1012'], ['Yapay zekâ rengi', '#B6A6FF'], ['Metin', '#ECEDEE'], ['İkincil metin', '#8A8F98'], ['Çizgi', '#1F2226']]
+          .map(([k, v]) => `<div class="field"><label>${k}</label><div class="input"><span style="width:14px;height:14px;border-radius:3px;background:${v};border:1px solid var(--line-2)"></span><span class="mono">${v}</span></div></div>`)
+          .join('')}
+      </div>
+      <div class="row"><button class="btn sm">JSON kopyala</button><button class="btn sm">JSON yapıştır</button></div>
+    </div>`
+    )
+  )
+
+PAGES['ayarlar-cuzdan'] = () =>
+  shell(
+    'ayarlar',
+    'Ayarlar · Cüzdanlar',
+    settingsShell(
+      'ayarlar-cuzdan',
+      `
+    <div class="infer"><span class="ai">model</span> · işlemler GMGN'e bağlı cüzdanlardan yapılır · uygulama özel anahtar tutmaz</div>
+    <div class="card flush">
+      <div class="card-head" style="padding:14px 16px 4px"><span class="over">GMGN cüzdanları · 3</span><button class="btn sm">GMGN'den yenile</button></div>
+      <table>
+        <thead><tr><th>Etiket</th><th>Adres</th><th class="num">Bakiye</th><th>Varsayılan</th><th></th></tr></thead>
+        <tbody>
+          ${[['ana', A4, '2.4810', true], ['dev2', A2, '0.0000', false], ['dev3', A3, '0.3120', false]]
+            .map(([l, a, b, d]) => `<tr><td>${l}</td><td>${short(a)}</td><td class="num">${b} SOL</td><td>${d ? '<span class="tag ai">VARSAYILAN</span>' : '<button class="btn xs">Varsayılan yap</button>'}</td><td class="right"><button class="btn xs">Gizle</button></td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+    </div>`
+    )
+  )
+
+PAGES.kullanicilar = () =>
+  shell(
+    'kullanicilar',
+    'Kullanıcılar',
+    `
+  <div class="grid-2" style="max-width:1120px;align-items:start;grid-template-columns:1.4fr 1fr">
+    <div class="card flush">
+      <div class="card-head" style="padding:14px 16px 4px"><span class="over">Ekip · 3</span><span class="faint mono" style="font-size:11px">açık kayıt kapalı</span></div>
+      <table>
+        <thead><tr><th>Kullanıcı</th><th>Rol</th><th>Durum</th><th class="num">Son giriş</th><th></th></tr></thead>
+        <tbody>
+          ${[['civan', 'FOUNDER', 'ai', 'Aktif', 'pos', 'şimdi', true], ['dev_ahmet', 'DEVELOPER', '', 'Aktif', 'pos', '2 sa', false], ['asistan_ece', 'ASİSTAN', '', 'Pasif', '', '3 gün', false]]
+            .map(([n, r, rc, s, sc, t, self]) => `<tr><td>${n}${self ? ' <span class="faint">(siz)</span>' : ''}</td><td><span class="tag ${rc}">${r}</span></td><td><span class="row"><span class="pip ${sc}"></span>${s}</span></td><td class="num mute">${t}</td><td class="right">${self ? '' : '<button class="btn xs">Pasifleştir</button> <button class="btn xs danger">Sil</button>'}</td></tr>`)
+            .join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card stack">
+      <span class="over">Yeni kullanıcı</span>
+      <div class="field"><label>E-posta</label><div class="input"><span class="faint">ornek@alan.com</span></div></div>
+      <div class="field"><label>Kullanıcı adı</label><div class="input"><span class="faint">kullanici</span></div></div>
+      <div class="field"><label>Geçici parola</label><div class="input mono"><span class="faint">en az 10 karakter</span></div></div>
+      <div class="field"><label>Rol</label><div class="seg" style="width:max-content"><span>Founder</span><span>Developer</span><span class="on">Asistan</span></div></div>
+      <button class="btn primary" style="justify-self:start">Oluştur</button>
+    </div>
+  </div>`
+  )
+
+PAGES.deploy = () =>
+  PAGES.akis() +
+  `
+<div class="scrim"></div>
+<aside class="sheet">
+  <div class="sheet-head"><div style="display:grid;gap:4px"><span class="over">Token deploy</span><span class="mono mute" style="font-size:11px">kaynak: @CAgovernor · 23:32:12</span></div><div class="row"><span class="mono mute" style="font-size:12px">ana · 2.4810 SOL</span><button class="btn xs">Kapat <span class="kbd">ESC</span></button></div></div>
+  <div class="sheet-body">
+    <div class="grid-2" style="grid-template-columns:1.6fr 1fr">
+      <div class="field"><label>Ad · 17/32</label><div class="input focus">Secretary-General</div></div>
+      <div class="field"><label>Sembol · 9/13</label><div class="input mono">SECRETARY</div></div>
+    </div>
+    <div class="field"><span class="lbl">Gönderiden çıkarılan adlar</span><div class="chips"><span class="chip ai">Secretary-General</span><span class="chip">UN Climate</span><span class="chip">Special Session</span><span class="chip">"climate action"</span></div></div>
+    <div class="field"><span class="lbl">Görsel</span><div class="imgs"><div class="on"></div><div></div><div></div><div></div><div class="add">Yükle</div></div></div>
+    <div class="grid-2">
+      <div class="field"><label>Web sitesi</label><div class="input"><span class="faint">https://</span></div></div>
+      <div class="field"><label>Gönderi</label><div class="input mono" style="font-size:12px">x.com/CAgovernor/status/19…</div></div>
+    </div>
+    <div class="field"><span class="lbl">Platform</span><div class="seg" style="width:max-content"><span class="on">pump</span><span>bonk</span><span>bags</span></div></div>
+    <div class="grid-2">
+      <div class="field"><label>Geliştirici alımı</label><div class="input num"><span>0.50</span><span class="unit">SOL</span></div></div>
+      <div class="field"><label>Otomatik satış</label><div class="input num"><span>MC $250K'da %50</span><span class="unit">limit</span></div></div>
+    </div>
+    <div class="field"><span class="lbl">Ücret paylaşımı · toplam %100</span>
+      <table style="border:1px solid var(--line);border-radius:var(--r-m)"><tbody>
+        <tr><td class="mono">X · @CAgovernor</td><td class="num">%0</td></tr>
+        <tr><td>${short(A4)}</td><td class="num">%100</td></tr>
+      </tbody></table>
+    </div>
+    <div class="infer"><span class="ai">ön kontrol</span> ad ve sembol uygun · görsel 812 KB · pump.fun alanları tamam · <span class="warn">deneme modu: gönderilmez</span></div>
+  </div>
+  <div class="sheet-foot"><span class="mono mute" style="font-size:11px">Preset P1 · tahmini ücret 0.0030 SOL</span><button class="btn primary" style="margin-left:auto">Deploy et <span class="kbd">ENTER</span></button></div>
+</aside>`
+
+PAGES.mobil = () => `
+<div style="min-height:100vh;display:grid;place-items:center;padding:24px 0">
+<div class="phone">
+  <div class="ptop"><span class="brand" style="padding:0;font-size:13px">memebot<span class="caret" style="height:12px"></span></span><span class="tag" style="margin-left:auto">DENEME</span><span class="pip pos"></span></div>
+  <div class="pmain">
+    <div class="seg" style="width:max-content"><span class="on">Tümü</span><span>X</span><span>TG</span><span>CA</span></div>
+    <article class="post new">
+      <div class="post-head" style="padding:12px 12px 8px"><div class="avatar" style="width:28px;height:28px">TR</div><div style="display:grid;gap:2px"><span class="row"><span class="name">Trench Caller</span><span class="src">TG</span></span><span class="mono faint" style="font-size:10px">23:32:33 · +0.4 sn</span></div><span class="tag ai" style="margin-left:auto">YENİ</span></div>
+      <div class="post-body" style="padding:0 12px 10px"><div class="tokens">${toks('yeni [3]gem çıktı, [2]dev [2]renounce etmiş {ca}7GCi…W2hr')}</div></div>
+      <div class="post-ai" style="margin:0 12px 12px">
+        <div class="row between"><span class="row">${conf(17, 'pos')}<span class="score pos">0.86</span></span><span class="tag pos">GEÇTİ</span></div>
+        <div class="infer" style="font-size:11px"><span class="ai">çıkarım</span> mint bırakılmış · rug 0.08 · likidite $41K</div>
+        <div class="row"><button class="btn sm primary" style="flex:1;justify-content:center">Satın al 0.1 SOL</button><button class="btn sm">Reddet</button></div>
+      </div>
+    </article>
+    <div class="card" style="padding:12px;display:grid;gap:10px">
+      <div class="row between"><span class="over">Açık · 4</span><span class="mono pos">+0.412 SOL</span></div>
+      ${[['WIFCAT', '+%48.1', 'pos'], ['GEMX', '−%26.9', 'neg'], ['MOODENG', '+%61.9', 'pos']].map(([t, p, c]) => `<div class="row between"><span>$${t}</span><span class="mono ${c}">${p}</span></div>`).join('')}
+    </div>
+  </div>
+  <div class="ptabs"><span class="on">Akış</span><span>Onay 3</span><span>Pozisyon</span><span>Emirler</span><span>Daha</span></div>
+</div>
+</div>`
+
+// ---------------------------------------------------------------- latent alan
+function latent() {
+  const c = document.getElementById('latent')
+  const ctx = c.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const draw = (t) => {
+    c.width = innerWidth * dpr
+    c.height = innerHeight * dpr
+    ctx.scale(dpr, dpr)
+    const wave = (t / 30) % (innerHeight + 200)
+    for (let y = 8; y < innerHeight; y += 16) {
+      for (let x = 8; x < innerWidth; x += 16) {
+        const d = Math.abs(y - (innerHeight * 0.32))
+        const glow = Math.max(0, 1 - d / 40) * (0.5 + 0.5 * Math.sin(x / 90))
+        ctx.fillStyle = glow > 0.05 ? `rgba(182,166,255,${0.08 + glow * 0.35})` : 'rgba(42,46,51,0.55)'
+        ctx.fillRect(x, y, 1.2, 1.2)
+      }
+    }
+  }
+  draw(0)
+}
+
+function render() {
+  const key = (location.hash || '#akis').slice(1)
+  document.getElementById('root').innerHTML = (PAGES[key] || PAGES.akis)()
+  latent()
+}
+addEventListener('hashchange', render)
+render()
+</script>
+</body>
+</html>
