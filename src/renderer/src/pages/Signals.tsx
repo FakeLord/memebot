@@ -5,13 +5,14 @@ import { usePipeline } from '../lib/pipeline'
 import { extractMints } from '../../../shared/extract'
 import { evaluateSafety, VERDICT_LABEL, type Verdict } from '../../../shared/safety'
 
-interface SignalRow {
+export interface SignalRow {
   id: string
+  source_id: string | null
   mint: string
   raw_text: string | null
   msg_ts: string | null
   received_at: string
-  sources: { title: string } | null
+  sources: { title: string; type: string } | null
 }
 
 interface Hits {
@@ -19,6 +20,15 @@ interface Hits {
 }
 
 type Raw = { info: unknown; security: unknown }
+
+/** Filtre çubuğundaki platform / kaynak / arama seçimi sinyallere de uygulanır. */
+export function signalMatches(r: SignalRow, f: { platform: 'all' | 'x' | 'telegram'; source: string; query: string; withMint?: boolean }): boolean {
+  if (f.platform !== 'all' && r.sources?.type !== f.platform) return false
+  if (f.source !== 'all' && r.source_id !== f.source) return false
+  const q = f.query.trim().toLocaleLowerCase('tr')
+  if (q && !`${r.mint} ${r.sources?.title ?? ''} ${r.raw_text ?? ''}`.toLocaleLowerCase('tr').includes(q)) return false
+  return true
+}
 
 function latency(msgTs: string | null, receivedAt: string): string {
   if (!msgTs) return '—'
@@ -33,24 +43,21 @@ function excerpt(text: string | null, mint: string): string {
   return firstLine.length > 90 ? firstLine.slice(0, 90) + '…' : firstLine
 }
 
-// Sinyal tablosu: kaynaklardan gelen token adresleri (çağrı sayısı, güvenlik, gecikme) + elle sinyal ekleme
-export function SignalsPanel({ onCheck }: { onCheck: (mint: string) => void }) {
+/** Sinyaller (token adresleri), çağrı sayıları ve en son güvenlik kontrolü. enabled=false iken yüklemez. */
+export function useSignalData(enabled = true) {
   const { profile } = useAuth()
+  const { rule } = usePipeline()
   const [rows, setRows] = useState<SignalRow[]>([])
   const [hits, setHits] = useState<Hits>({})
   const [loaded, setLoaded] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
-  const { rule } = usePipeline()
   const [raws, setRaws] = useState<Record<string, Raw>>({})
-  const [manual, setManual] = useState('')
-  const [manualMsg, setManualMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile) return
+    if (!profile || !enabled) return
     const load = async () => {
       const { data } = await supabase
         .from('signals')
-        .select('id, mint, raw_text, msg_ts, received_at, sources(title)')
+        .select('id, source_id, mint, raw_text, msg_ts, received_at, sources(title, type)')
         .eq('user_id', profile.id)
         .order('received_at', { ascending: false })
         .limit(150)
@@ -82,7 +89,45 @@ export function SignalsPanel({ onCheck }: { onCheck: (mint: string) => void }) {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [profile?.id])
+  }, [profile?.id, enabled])
+
+  const verdictOf = (mint: string): Verdict | undefined =>
+    raws[mint] ? evaluateSafety(raws[mint].security, raws[mint].info, rule.thresholds).result : undefined
+
+  return { rows, hits, loaded, verdictOf }
+}
+
+/** Birleşik zaman çizelgesinde gönderi kartlarının arasına giren kompakt sinyal satırı. */
+export function SignalLine({ row, hits, verdict, onCheck }: { row: SignalRow; hits?: number; verdict?: Verdict; onCheck: (mint: string) => void }) {
+  return (
+    <div className="signal-line">
+      <span className="badge">Sinyal</span>
+      <span className="muted mono">{new Date(row.received_at).toLocaleTimeString('tr-TR')}</span>
+      <span className="signal-line-src">{row.sources?.title ?? '—'}</span>
+      <span className="mono" title={row.mint}>
+        {row.mint.slice(0, 6)}…{row.mint.slice(-6)}
+      </span>
+      {verdict && <span className={`badge ${verdict}`}>{VERDICT_LABEL[verdict]}</span>}
+      {hits && hits > 1 && <span className="badge warn">{hits}×</span>}
+      <span className="spacer" />
+      <button className="btn btn-sm" onClick={() => onCheck(row.mint)}>
+        Kontrol
+      </button>
+      <a className="btn btn-sm" href={`https://gmgn.ai/sol/token/${row.mint}`} target="_blank" rel="noreferrer">
+        GMGN
+      </a>
+    </div>
+  )
+}
+
+// Sinyal tablosu: kaynaklardan gelen token adresleri (çağrı sayısı, güvenlik, gecikme) + elle sinyal ekleme
+export function SignalsPanel({ onCheck, filter }: { onCheck: (mint: string) => void; filter?: { platform: 'all' | 'x' | 'telegram'; source: string; query: string } }) {
+  const { profile } = useAuth()
+  const { rows: all, hits, loaded, verdictOf } = useSignalData(true)
+  const rows = filter ? all.filter((r) => signalMatches(r, filter)) : all
+  const [copied, setCopied] = useState<string | null>(null)
+  const [manual, setManual] = useState('')
+  const [manualMsg, setManualMsg] = useState<string | null>(null)
 
   const copy = async (mint: string) => {
     await navigator.clipboard.writeText(mint)
@@ -116,9 +161,6 @@ export function SignalsPanel({ onCheck }: { onCheck: (mint: string) => void }) {
     setManualMsg(null)
   }
 
-  const verdictOf = (mint: string): Verdict | undefined =>
-    raws[mint] ? evaluateSafety(raws[mint].security, raws[mint].info, rule.thresholds).result : undefined
-
   return (
     <div className="stack">
       <form className="row" onSubmit={addManual}>
@@ -136,7 +178,7 @@ export function SignalsPanel({ onCheck }: { onCheck: (mint: string) => void }) {
 
       {loaded && rows.length === 0 ? (
         <div className="empty">
-          Henüz sinyal yok.
+          {all.length ? 'Filtreye uyan sinyal yok.' : 'Henüz sinyal yok.'}
           <div className="faint" style={{ marginTop: 6 }}>
             İzlenen kanallarda bir token adresi paylaşıldığında burada görünecek.
           </div>

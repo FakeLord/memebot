@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Activity, BarChart3, CalendarDays, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
+import { BarChart3, CalendarDays, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
 import { useDashboardData, useDashMode, useGmgnDash } from '../lib/dashboard'
 import { useNav } from '../lib/nav'
 import { canTrade, useAuth } from '../lib/auth'
 import { dailySeries, funnel, sourcePerformance, startOfDay, summarize, type DPosition } from '../../../shared/dashboard'
 import { Card, Empty, FunnelBars, Kpi, ModeSwitch, OpenPositions, PendingList, PnlChart, PnlKpis, RecentSignals, SourceTable, TrendingList, WalletStatsCards, ago, pct, sol, tone } from '../components/DashWidgets'
-import { AlertList, HealthList, useHealth } from '../components/DashHealth'
+import { useHealth } from '../components/DashHealth'
 import { useNow } from '../components/DashRails'
 import { useDeploy } from '../components/DeployPanel'
 import { PnlCalendar } from '../components/DashExtras'
@@ -92,8 +92,6 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
         </button>
       </div>
 
-      <AlertList alerts={health.alerts} />
-
       {!data.loaded ? (
         <Empty>Yükleniyor…</Empty>
       ) : (
@@ -146,26 +144,22 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
           </div>
 
           <div className="dgrid dgrid-2">
-            <Card title="Sistem sağlığı" icon={<Activity size={13} />} flush>
-              <HealthList health={health} />
-            </Card>
             <Card title="Son sinyaller" icon={<Radio size={13} />} flush>
               <RecentSignals rows={data.recentSignals} sources={data.sources} now={now} />
             </Card>
+            <Card
+              title="Son kapanan işlemler"
+              icon={<LayoutDashboard size={13} />}
+              flush
+              actions={
+                <button className="link faint" style={{ fontSize: 11, textDecoration: 'none' }} onClick={() => go('positions')}>
+                  Pozisyonlar
+                </button>
+              }
+            >
+              <ClosedTrades positions={modePositions} />
+            </Card>
           </div>
-
-          <Card
-            title="Son kapanan işlemler"
-            icon={<LayoutDashboard size={13} />}
-            flush
-            actions={
-              <button className="link faint" style={{ fontSize: 11, textDecoration: 'none' }} onClick={() => go('positions')}>
-                Pozisyonlar
-              </button>
-            }
-          >
-            <ClosedTrades positions={modePositions} />
-          </Card>
 
           <Card title="Hızlı işlemler" icon={<Zap size={13} />}>
             <div className="row">
@@ -180,19 +174,11 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
               <button className="btn btn-sm" onClick={() => window.dispatchEvent(new CustomEvent('memebot:panel', { detail: 'rules' }))}>
                 <SlidersHorizontal size={13} /> Kurallar panosu
               </button>
-              <button className="btn btn-sm" onClick={() => go('speed')}>
-                <Activity size={13} /> Hız
-              </button>
               <button className="btn btn-sm" onClick={() => go('orders')}>
                 Emirler
               </button>
             </div>
           </Card>
-          {configured && dash?.at ? (
-            <p className="faint" style={{ fontSize: 11 }}>
-              GMGN verisi {ago(dash.at, now)} önce tazelendi (trend dakikada bir, cüzdan istatistikleri 5 dakikada bir).
-            </p>
-          ) : null}
         </>
       )}
     </div>

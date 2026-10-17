@@ -764,3 +764,29 @@ button.gm-cell { cursor: default; }
 /* ---- alt çubuk rozetleri ---- */
 .sb-badge { display: inline-grid; place-items: center; min-width: 16px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: 700 9.5px var(--mono); }
 .sb-badge.warn { background: var(--warn); color: #111; }
+
+/* ---- birleşik akışta sinyal satırı ---- */
+.signal-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; background: var(--surface); font-size: 12px; }
+.signal-line-src { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- ana sayfa panelleri: tutamaç ve bırakma göstergesi ---- */
+.rail-grip { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 2px; border-radius: 4px; color: var(--faint); cursor: grab; opacity: 0.55; }
+.rail-grip:hover { opacity: 1; color: var(--text); background: var(--soft); }
+.rail-grip:active { cursor: grabbing; }
+.rail-item { position: relative; }
+.rail-item.drop-before::before, .rail-drop-end { content: ''; display: block; height: 3px; border-radius: 2px; background: var(--accent); margin: -6px 0 3px; }
+.rail-drop-end { margin: 0; }
+.rail-bare { display: grid; gap: 4px; }
+.rail-bare > .rail-grip { justify-self: end; margin: 0 4px -2px; }
+.rail-empty { border: 1px dashed var(--border); border-radius: 10px; padding: 18px 12px; text-align: center; font-size: 11.5px; color: var(--faint); }
+.rail-over { outline: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; border-radius: 10px; }
+.widget-list { display: grid; gap: 4px; }
+.widget-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
+.widget-title { font-size: 12.5px; font-weight: 600; }
+.dcard-title { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---- akış filtreleri ---- */
+.pill-n { margin-left: 5px; font: 600 10px var(--mono); opacity: 0.65; }
+.feed-source { max-width: 150px; }
+.feed.wide { max-width: none !important; }
+@media (min-width: 1240px) { .feed-layout.wide-center { grid-template-columns: minmax(250px, 1fr) minmax(0, 900px) minmax(250px, 1fr); } }

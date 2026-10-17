@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, shell } from 'electron'
 import { join } from 'node:path'
 import { setupUpdater } from './updater'
 import { EngineHost } from './engineHost'
@@ -7,6 +7,12 @@ import { EngineHost } from './engineHost'
 // bilgisayarda arka planda çalıştırır. Alım-satım, GMGN, Telegram, X mantığı motorda (src/engine).
 
 let win: BrowserWindow | null = null
+
+// Başka bir uygulama (tarayıcı, tam ekran oyun) öne geçince Windows/Chromium arka plandaki süreçleri
+// yavaşlatabilir. Motor bu yüzden duraksamasın: arka planda zamanlayıcı ve süreç kısıtlamaları kapalı.
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-background-timer-throttling')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -24,7 +30,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false
     }
   })
 
@@ -78,6 +85,10 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     app.setAppUserModelId('com.fakelord.memebot')
     registerIpc(setupUpdater(() => win), engine)
+    // Uygulama açıkken sistem uygulamayı askıya almasın (ekran kapanabilir, motor çalışmaya devam eder)
+    powerSaveBlocker.start('prevent-app-suspension')
+    powerMonitor.on('suspend', () => engine.note('bilgisayar uykuya geçti: motor uyku boyunca çalışamaz'))
+    powerMonitor.on('resume', () => engine.note('bilgisayar uykudan döndü'))
     engine.start()
     createWindow()
   })

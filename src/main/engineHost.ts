@@ -76,6 +76,11 @@ export class EngineHost {
     writeFileSync(this.file, safeStorage.encryptString(JSON.stringify(cfg)))
   }
 
+  /** Motor günlüğüne (Ayarlar → GMGN ve motor) bir not düşer. */
+  note(line: string) {
+    this.push(line)
+  }
+
   private push(line: string) {
     if (!app.isPackaged) process.stdout.write(`[motor] ${line}
 `)

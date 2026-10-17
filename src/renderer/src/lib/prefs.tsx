@@ -37,6 +37,8 @@ export interface UiLayout {
   openAfterDeploy?: 'gmgn' | 'solscan' | 'none'
   /** Alt çubuktaki canlı fiyatlar: gösterilen coinler (boş dizi = kapalı); tanımsızsa varsayılan 4 coin */
   ticker?: string[]
+  /** Canlı Akış yan panelleri: hangi kartlar hangi sütunda, hangi sırada */
+  rails?: { left: string[]; right: string[] }
 }
 
 interface PrefsCtx {

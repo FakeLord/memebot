@@ -34,11 +34,12 @@ export const ago = (iso: string | number | null | undefined, now = Date.now()) =
 }
 
 // ---------------------------------------------------------------- küçük yapı taşları
-export function Card({ title, icon, actions, children, flush }: { title: string; icon?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean }) {
+export function Card({ title, icon, actions, children, flush, grip }: { title: string; icon?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean; grip?: ReactNode }) {
   return (
     <section className="dcard">
       <header className="dcard-head">
         <span className="dcard-title">
+          {grip}
           {icon} {title}
         </span>
         {actions && <span className="dcard-actions">{actions}</span>}

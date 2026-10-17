@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, RotateCcw } from 'lucide-react'
 import { FloatingPanel } from './FloatingPanel'
 import { canTrade, ROLE_LABEL, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -10,6 +10,7 @@ import { useNav } from '../lib/nav'
 import { THEMES, themeColors } from '../../../shared/settings'
 import type { TelegramStatus } from '../../../shared/types'
 import { since, StatusPill, Toggle } from './ui'
+import { RAIL_WIDGETS, useRails, type WidgetId } from './DashRails'
 
 // Alt çubuktaki kısayolların mini panelleri. Hepsi taşınabilir ve boyutlandırılabilir (FloatingPanel);
 // tıklanan düğmenin üstünde açılır, aynı düğme ya da X ile kapanır. Birden fazlası aynı anda açık kalabilir.
@@ -333,6 +334,52 @@ export function ThemePanel({ onClose, left }: { onClose: () => void; left: numbe
       >
         Özel palet ve diğer ayarlar
       </GoLink>
+    </Popover>
+  )
+}
+
+// ---------------------------------------------------------------- paneller
+// Canlı Akış'ın yan panellerinde hangi kartların görüneceğini seçer; yerleri kartlardan sürüklenerek değişir.
+export function WidgetsPanel({ onClose, left }: { onClose: () => void; left: number }) {
+  const { rails, toggle, reset } = useRails()
+  const { go } = useNav()
+  const sideOf = (id: string) => (rails.left.includes(id) ? 'Sol' : rails.right.includes(id) ? 'Sağ' : null)
+  return (
+    <Popover title="Paneller" onClose={onClose} left={left} width={320}>
+      <p className="faint" style={{ fontSize: 11, margin: 0 }}>
+        Ana sayfanın iki yanındaki kartlar. Açıp kapatın; kartı başlığındaki tutamaçtan sürükleyerek taşıyın (geniş ekran).
+      </p>
+      <div className="widget-list">
+        {(Object.keys(RAIL_WIDGETS) as WidgetId[]).map((id) => {
+          const w = RAIL_WIDGETS[id]
+          const side = sideOf(id)
+          return (
+            <div key={id} className="widget-row">
+              <div style={{ minWidth: 0 }}>
+                <div className="widget-title">{w.title}</div>
+                <div className="faint" style={{ fontSize: 11 }}>
+                  {side ? `${side} sütun · ` : ''}
+                  {w.desc}
+                </div>
+              </div>
+              <Toggle checked={!!side} onChange={() => toggle(id)} title={side ? 'Kaldır' : 'Ekle'} />
+            </div>
+          )
+        })}
+      </div>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <button className="btn btn-sm btn-ghost" onClick={reset}>
+          <RotateCcw size={12} /> Varsayılana dön
+        </button>
+        <GoLink
+          onClick={() => {
+            onClose()
+            go('feed')
+          }}
+        >
+          Ana sayfa
+        </GoLink>
+      </div>
     </Popover>
   )
 }

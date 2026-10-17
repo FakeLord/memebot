@@ -43,6 +43,7 @@ export class Engine {
   private timers: ReturnType<typeof setInterval>[] = []
   private channel: RealtimeChannel | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
+  private lastBeat = Date.now()
 
   constructor(o: EngineStartOptions) {
     this.ctx = new EngineContext(o)
@@ -72,6 +73,10 @@ export class Engine {
   private async beat(): Promise<void> {
     if (this.stopped) return
     const { db, log } = this.ctx
+    // Zamanlayıcı uzun süre çalışmadıysa süreç dondurulmuş demektir (uyku, enerji tasarrufu)
+    const gap = Date.now() - this.lastBeat
+    this.lastBeat = Date.now()
+    if (gap > HEARTBEAT_MS * 3) log.warn('motor bir süre çalışmadı (bilgisayar uyku ya da enerji tasarrufunda olabilir)', { saniye: Math.round(gap / 1000) })
     const { data, error } = await db.rpc('engine_claim', { p_instance: this.instanceId, p_ttl_sec: CLAIM_TTL_SEC })
     if (error) return log.warn('motor kilidi alınamadı', { error: error.message })
     const won = data === true

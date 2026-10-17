@@ -8,6 +8,7 @@ import {
   History,
   House,
   Layers,
+  LayoutGrid,
   LineChart,
   LogOut,
   Maximize,
@@ -34,7 +35,7 @@ import { usePrefs } from '../lib/prefs'
 import { useNav, type Page } from '../lib/nav'
 import { useDeploy } from './DeployPanel'
 import { FeesPopover } from './FeesPopover'
-import { ConnPanel, EnginePanel, HistoryPanel, ModePanel, ThemePanel } from './StatusPanels'
+import { ConnPanel, EnginePanel, HistoryPanel, ModePanel, ThemePanel, WidgetsPanel } from './StatusPanels'
 import { MiniRules } from './MiniRules'
 import { cap, useBadges } from '../lib/badges'
 import { DEFAULT_TICKER, fmtPrice, usePrices } from '../lib/prices'
@@ -49,7 +50,7 @@ const HEAD: Partial<Record<Page, { icon: LucideIcon; title: string; sub: string 
   orders: { icon: ScrollText, title: 'Emirler', sub: 'Alım-satım geçmişi' },
   token: { icon: Search, title: 'Token Kontrol', sub: 'Adres ya da mesaj yapıştırın' },
   speed: { icon: Activity, title: 'Hız', sub: 'API ve işlem süreleri' },
-  dashboard: { icon: LayoutDashboard, title: 'Dashboard', sub: 'Kâr/zarar, pozisyonlar, kaynaklar ve sistem durumu' }
+  dashboard: { icon: LayoutDashboard, title: 'Dashboard', sub: 'Kâr/zarar, pozisyonlar, kaynaklar ve işlem istatistikleri' }
 }
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -250,7 +251,7 @@ function TopBar() {
 // Alt durum çubuğu: her kısayol kendi mini panosunu açar (bağlantı, motor, geçmiş, ücret, kurallar, işlem modu, görünüm).
 // Panolar taşınır ve boyutlanır; birden fazlası aynı anda açık kalabilir. Aynı düğme panoyu kapatır.
 // Başka bir yerden açmak için: window.dispatchEvent(new CustomEvent('memebot:panel', { detail: 'fees' }))
-type PanelName = 'conn' | 'engine' | 'history' | 'fees' | 'rules' | 'mode' | 'theme'
+type PanelName = 'conn' | 'engine' | 'history' | 'fees' | 'rules' | 'mode' | 'theme' | 'widgets'
 
 // Alt çubuktaki canlı piyasa fiyatları (Ayarlar → Görünüm'den seçilir)
 function PriceTicker() {
@@ -344,6 +345,10 @@ function StatusBar() {
       <button className={`sb-item ${page === 'positions' ? 'open' : ''}`} title="Açık pozisyonlar" onClick={() => go('positions')}>
         Açık {openCount > 0 && <span className="sb-badge">{cap(openCount)}</span>}
       </button>
+      <button {...btn('widgets')} title="Ana sayfa panelleri: ekle, kaldır">
+        <LayoutGrid size={12} />
+        Paneller
+      </button>
       <button {...btn('rules')} title="Kurallar panosu">
         <SlidersHorizontal size={12} />
         Kurallar
@@ -359,6 +364,7 @@ function StatusBar() {
       {'fees' in open && <FeesPopover onClose={closer('fees')} left={at('fees')} />}
       {'rules' in open && <MiniRules onClose={closer('rules')} anchorX={at('rules')} />}
       {'mode' in open && <ModePanel onClose={closer('mode')} left={at('mode')} />}
+      {'widgets' in open && <WidgetsPanel onClose={closer('widgets')} left={at('widgets')} />}
       {'theme' in open && <ThemePanel onClose={closer('theme')} left={at('theme')} />}
 
       <PriceTicker />
