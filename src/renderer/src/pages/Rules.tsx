@@ -125,6 +125,12 @@ export function RulesPage() {
                 <SettingRow title="Otomatik alım tutarı" desc="Otomatik modda her alım">
                   <UnitInput value={l.autoBuySol} unit="SOL" onChange={(v) => d.setL('autoBuySol', v)} />
                 </SettingRow>
+                <SettingRow title="Otomatik alım yalnız güvenilir kişilerden" desc="Telegram grup çağrılarında: Çağrıcılar'da “Güvenilir” seçtikleriniz otomatik alınır, diğerleri onaya düşer (kanal ve X sinyalleri etkilenmez)">
+                  <Toggle checked={l.autoOnlyTrusted} onChange={(v) => d.setL('autoOnlyTrusted', v)} />
+                </SettingRow>
+                <SettingRow title="Güvenilir kişide tutar çarpanı" desc="Otomatik alım tutarı × çarpan (en çok işlem başı maks. tutar)">
+                  <UnitInput value={l.trustedBuyMult} unit="×" onChange={(v) => d.setL('trustedBuyMult', v)} />
+                </SettingRow>
                 <SettingRow title="Otomatik moddaki ücret preset'i">
                   <span className="gm-presets">
                     {([1, 2, 3] as PresetSlot[]).map((s) => (

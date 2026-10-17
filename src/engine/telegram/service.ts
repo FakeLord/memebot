@@ -50,6 +50,19 @@ export interface TelegramStore {
   clear(): void
 }
 
+/** Grup mesajının yazarı. Kanal gönderilerinde ve anonim yöneticilerde kişi yoktur. */
+export async function senderOf(msg: Api.Message): Promise<{ id?: string; name?: string; handle?: string }> {
+  if (!msg.isGroup) return {}
+  // Önce güncellemeyle gelen (anında) bilgi; yoksa sinyal gecikmesin diye en çok 400 ms beklenir
+  let s: unknown = msg.sender
+  if (!s) {
+    s = await Promise.race([msg.getSender().catch(() => undefined), new Promise<undefined>((res) => setTimeout(() => res(undefined), 400))])
+  }
+  if (!(s instanceof Api.User)) return {}
+  const name = [s.firstName, s.lastName].filter(Boolean).join(' ') || s.username || undefined
+  return { id: s.id.toString(), name, handle: s.username ?? undefined }
+}
+
 // Mesaj metni + gizli bağlantılar + buton URL'leri. Mint adresi çoğu zaman
 // "Buy" butonunun ya da köprülü metnin içinde, görünür metinde değil.
 export function messageText(msg: Api.Message): string {
@@ -234,7 +247,11 @@ export class TelegramService {
       if (!chatId || !this.watched.has(chatId)) return
       const text = messageText(msg)
       if (!text && !msg.photo) return
+      const who = await senderOf(msg)
       const base: TelegramMessage = {
+        senderId: who.id,
+        senderName: who.name,
+        senderHandle: who.handle,
         chatId,
         msgId: msg.id,
         text,

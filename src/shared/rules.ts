@@ -22,6 +22,8 @@ export interface RuleLimits {
   maxOpenPositions: number
   // --- otomatik mod
   autoBuySol: number // otomatik alım tutarı
+  autoOnlyTrusted: boolean // Telegram grup çağrılarında otomatik alım yalnız "güvenilir" kişilerden; diğerleri onaya düşer
+  trustedBuyMult: number // güvenilir kişinin çağrısında otomatik alım tutarı çarpanı (en çok maxBuySol)
   dailyLossLimitSol: number // bugünkü gerçekleşen zarar bunu aşarsa otomatik mod kendini kapatır
   // --- ücret preset'leri (fee_presets): elle işlemde etkin olan ve otomatik modun kullandığı
   activePreset: 1 | 2 | 3
@@ -49,6 +51,8 @@ export const DEFAULT_LIMITS: RuleLimits = {
   dailyMaxSol: 2,
   maxOpenPositions: 5,
   autoBuySol: 0.05,
+  autoOnlyTrusted: false,
+  trustedBuyMult: 1,
   dailyLossLimitSol: 0.5,
   activePreset: 1,
   autoPreset: 1

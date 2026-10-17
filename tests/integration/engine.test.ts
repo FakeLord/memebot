@@ -301,6 +301,73 @@ d('MemeBot Engine (yerel Supabase)', () => {
     await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 }, 'manual')
   })
 
+  it('çağrıcı: gönderen kaydedilir; engelli kişinin çağrısı aday olmaz; "yalnız güvenilir" otomatik alımı kişiye göre ayırır', async () => {
+    // Telegram grubundaki gibi: gönderen bilgisiyle sinyal (motorun kayıt fonksiyonu)
+    const call = async (m: string, sender: string, name: string) => {
+      const { error } = await admin.rpc('engine_record_signal', {
+        p_user_id: dev.id,
+        p_source_id: manualSource,
+        p_msg_id: Date.now() + Math.floor(Math.random() * 1000),
+        p_mint: m,
+        p_raw_text: `CA ${m}`,
+        p_msg_ts: new Date().toISOString(),
+        p_sender_id: sender,
+        p_sender_name: name,
+        p_sender_handle: name.toLowerCase()
+      })
+      if (error) throw error
+    }
+    const processed = (m: string) =>
+      waitFor(async () => {
+        const { data } = await admin.from('signals').select('processed_at').eq('mint', m).single()
+        return data?.processed_at
+      })
+    const sender = `tg-${tag}`
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, autoBuySol: 0.05, maxOpenPositions: 50 }, 'manual')
+    await engine.ctx.users.load()
+
+    // 1) normal kişi: sinyalde gönderen var, çağrıcı satırı açılır, aday oluşur
+    const m1 = mint()
+    await call(m1, sender, 'Alo')
+    await waitFor(async () => (await dev.client.from('candidates').select('id').eq('mint', m1).maybeSingle()).data)
+    const { data: s1 } = await admin.from('signals').select('sender_id, sender_name, sender_handle').eq('mint', m1).single()
+    expect(s1).toEqual({ sender_id: sender, sender_name: 'Alo', sender_handle: 'alo' })
+    const { data: c1 } = await dev.client.from('callers').select('name, handle, rule').eq('sender_id', sender).single()
+    expect(c1).toEqual({ name: 'Alo', handle: 'alo', rule: 'normal' })
+
+    // 2) engelli: sinyal işlenir ama aday ve GMGN kontrolü olmaz
+    await dev.client.from('callers').update({ rule: 'blocked' }).eq('sender_id', sender)
+    const m2 = mint()
+    await call(m2, sender, 'Alo')
+    await processed(m2)
+    await new Promise((r) => setTimeout(r, 400))
+    expect((await admin.from('candidates').select('id').eq('mint', m2)).data).toEqual([])
+    // Bu token için GMGN güvenlik kontrolü hiç yapılmadı (takipçinin diğer fiyat sorguları sayılmaz)
+    expect(gmgn.calls.filter((c) => c.fn === 'tokenInfo' && c.args === m2)).toEqual([])
+
+    // 3) otomatik mod + yalnız güvenilir: normal kişi onaya düşer, güvenilir kişi 2x tutarla otomatik alınır
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, autoBuySol: 0.05, maxOpenPositions: 50, autoOnlyTrusted: true, trustedBuyMult: 2 }, 'auto')
+    await engine.ctx.users.load()
+    await dev.client.from('callers').update({ rule: 'normal' }).eq('sender_id', sender)
+    const m3 = mint()
+    await call(m3, sender, 'Alo')
+    const c3 = await waitFor(async () => (await dev.client.from('candidates').select('status, auto').eq('mint', m3).maybeSingle()).data)
+    expect(c3.status).toBe('pending')
+    expect((await admin.from('orders').select('id').eq('mint', m3)).data).toEqual([])
+
+    await dev.client.from('callers').update({ rule: 'trusted' }).eq('sender_id', sender)
+    const m4 = mint()
+    await call(m4, sender, 'Alo')
+    const o4 = await waitFor(async () => {
+      const { data } = await dev.client.from('orders').select('*').eq('mint', m4).maybeSingle()
+      return data?.status === 'confirmed' ? data : null
+    })
+    expect(o4.amount_in).toBe('100000000') // 0.05 × 2
+
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 }, 'manual')
+    await engine.ctx.users.load()
+  })
+
   it('deneme modu GMGN\'e swap göndermez; otomatik mod autoPreset ücretlerini kullanır', async () => {
     await admin
       .from('fee_presets')
@@ -556,10 +623,11 @@ d('MemeBot Engine (yerel Supabase)', () => {
 
   it('dashboard: motor GMGN trend, bakiye ve cüzdan istatistiklerini durum satırına yazar; anahtar silinince temizler', async () => {
     const dash = async () => (await dev.client.from('engine_user_state').select('gmgn').eq('user_id', dev.id).single()).data?.gmgn
+    // Motorun kendi 15 sn'lik turu anahtar kaydedildikten sonra istediği an çalışabilir: sayım kayıttan önce başlar
+    const before = gmgn.calls.length
     await runSealed(dev.client, dev.id, 'gmgn.save', { apiKey: 'dash-test-key', privateKeyPem: pem })
     const w = await runCommand(dev.client, dev.id, 'gmgn.wallets', {})
     await runCommand(dev.client, dev.id, 'gmgn.wallet', { address: w.wallets[0].address })
-    const before = gmgn.calls.length
     await engine.dashboard.tick()
     const g = await waitFor(async () => {
       const x = await dash()
@@ -575,6 +643,7 @@ d('MemeBot Engine (yerel Supabase)', () => {
     expect(g.dash.trending.items).toHaveLength(1) // sembolsüz satır atlanır
     expect(g.dash.trending.items[0]).toMatchObject({ symbol: 'AAA', marketCap: 1_000_000, volume: 99_000, change: 12.5, holders: 800, launchpad: 'Pump.fun' })
     // trend + bakiye + 2 istatistik + 2 kâr = 6 GMGN çağrısı
+    await waitFor(async () => gmgn.calls.slice(before).filter((c) => c.fn === 'walletProfits').length >= 2)
     const fns = gmgn.calls.slice(before).map((c) => c.fn)
     expect(fns.filter((f) => f === 'trending')).toHaveLength(1)
     expect(fns.filter((f) => f === 'walletStats')).toHaveLength(2)

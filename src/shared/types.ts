@@ -108,6 +108,10 @@ export interface TelegramMessage {
   mediaOnly?: boolean // aynı mesajın görsel güncellemesi (sinyal olarak tekrar işlenmez)
   replyText?: string
   channelUsername?: string // herkese açık kanalsa t.me bağlantısı için
+  // Gruplarda mesajı yazan kişi (kanallarda ve anonim yöneticilerde yok)
+  senderId?: string
+  senderName?: string
+  senderHandle?: string
 }
 
 export interface XHit {

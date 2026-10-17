@@ -94,11 +94,13 @@ export class SourceHub {
       return
     }
     // Önce sinyal (hız), sonra kart
-    if (m.text) await this.record(userId, source.id, String(m.msgId), m.text, new Date(m.date * 1000))
+    const sender = m.senderId ? { id: m.senderId, name: m.senderName, handle: m.senderHandle } : undefined
+    if (m.text) await this.record(userId, source.id, String(m.msgId), m.text, new Date(m.date * 1000), 5, sender)
     await this.feed.ingest(userId, source.id, {
       platform: 'telegram',
       externalId,
-      author: { name: source.title, handle: m.channelUsername },
+      // Gruplarda kartın yazarı mesajı yazan kişidir (kanal adı yanında); kanallarda kanalın kendisi
+      author: sender ? { name: `${sender.name ?? sender.handle ?? 'Üye'} · ${source.title}`, handle: sender.handle ?? m.channelUsername } : { name: source.title, handle: m.channelUsername },
       body: m.body,
       scanText: m.text,
       kind: m.replyText ? 'reply' : 'post',
@@ -127,7 +129,7 @@ export class SourceHub {
     })
   }
 
-  async record(userId: string, sourceId: string, msgId: string, text: string, at: Date, limit = 5): Promise<number> {
+  async record(userId: string, sourceId: string, msgId: string, text: string, at: Date, limit = 5, sender?: { id: string; name?: string; handle?: string }): Promise<number> {
     let n = 0
     for (const mint of extractMints(text).slice(0, limit)) {
       const { error } = await this.ctx.db.rpc('engine_record_signal', {
@@ -136,7 +138,10 @@ export class SourceHub {
         p_msg_id: msgId, // 19 haneli tweet kimliği: sayıya çevirmeden metin olarak
         p_mint: mint,
         p_raw_text: text,
-        p_msg_ts: at.toISOString()
+        p_msg_ts: at.toISOString(),
+        p_sender_id: sender?.id ?? null,
+        p_sender_name: sender?.name ?? null,
+        p_sender_handle: sender?.handle ?? null
       })
       if (error) this.ctx.log.warn('sinyal yazılamadı', { error: error.message })
       else n++

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3, CalendarDays, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
+import { BarChart3, CalendarDays, Trophy as TrophyIcon, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
 import { useDashboardData, useDashMode, useGmgnDash } from '../lib/dashboard'
 import { useNav } from '../lib/nav'
 import { canTrade, useAuth } from '../lib/auth'
@@ -9,6 +9,7 @@ import { useHealth } from '../components/DashHealth'
 import { useNow } from '../components/DashRails'
 import { useDeploy } from '../components/DeployPanel'
 import { PnlCalendar } from '../components/DashExtras'
+import { TopCallers } from '../components/Callers'
 import { useShareCard } from '../components/ShareCard'
 
 // Dashboard: tüm veriler tek ekranda. Ana sayfanın yan panelleri bunun özetidir.
@@ -129,6 +130,10 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
               <PendingList pending={data.pending} now={now} />
             </Card>
           </div>
+
+          <Card title="En çok kazandıran 10 kişi (Telegram grupları)" icon={<TrophyIcon size={13} />}>
+            <TopCallers data={data} mode={mode} />
+          </Card>
 
           <Card title={`Kaynak performansı · ${days} gün`} icon={<Trophy size={13} />} flush>
             <SourceTable rows={sources} />

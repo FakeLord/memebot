@@ -26,15 +26,15 @@ export class Pipeline {
     const db = this.ctx.db
     const { data } = await db
       .from('signals')
-      .select('id, user_id, mint, received_at')
+      .select('id, user_id, mint, received_at, sender_id')
       .is('processed_at', null)
       .order('received_at')
       .limit(25)
-    for (const s of (data as { id: string; user_id: string; mint: string; received_at: string }[]) ?? []) {
+    for (const s of (data as { id: string; user_id: string; mint: string; received_at: string; sender_id: string | null }[]) ?? []) {
       const { data: won } = await db.from('signals').update({ processed_at: new Date().toISOString() }).eq('id', s.id).is('processed_at', null).select('id')
       if (!won?.length) continue
       if (Date.now() - new Date(s.received_at).getTime() > SIGNAL_MAX_AGE_MS) continue
-      await this.processMint(s.user_id, s.mint, s.id)
+      await this.processMint(s.user_id, s.mint, s.id, s.sender_id)
     }
   }
 
@@ -91,10 +91,21 @@ export class Pipeline {
     return out
   }
 
-  async processMint(userId: string, mint: string, signalId?: string): Promise<void> {
+  /** Çağrıcının kuralı (kişi tanınmıyorsa ya da kural yoksa 'normal'). */
+  private async callerRule(userId: string, senderId: string | null | undefined): Promise<'normal' | 'trusted' | 'blocked'> {
+    if (!senderId) return 'normal'
+    const { data } = await this.ctx.db.from('callers').select('rule').eq('user_id', userId).eq('sender_id', senderId).maybeSingle()
+    const r = data?.rule
+    return r === 'trusted' || r === 'blocked' ? r : 'normal'
+  }
+
+  async processMint(userId: string, mint: string, signalId?: string, senderId?: string | null): Promise<void> {
     const ctx = this.ctx
     const key = `${userId}:${mint}`
     if (this.inFlight.has(key) || !ctx.users.active(userId)) return
+    // Engelli kişinin çağrısı hiç işlenmez (güvenlik kontrolü için GMGN çağrısı bile yapılmaz)
+    const callerRule = await this.callerRule(userId, senderId)
+    if (callerRule === 'blocked') return
     this.inFlight.add(key)
     ctx.state.patch(userId, { pipeline: { state: 'working' } })
     try {
@@ -130,14 +141,16 @@ export class Pipeline {
         if (error.code !== '23505') ctx.state.patch(userId, { pipeline: { lastError: error.message } })
         return
       }
-      if (rule.mode === 'auto') await this.autoBuy(userId, cand.id, mint, summary.symbol)
+      // Otomatik alım: "yalnız güvenilir" açıksa, kişisi bilinen (grup) çağrılarda sadece güvenilirler otomatik alınır; diğerleri onay bekler
+      const gated = rule.limits.autoOnlyTrusted && !!senderId && callerRule !== 'trusted'
+      if (rule.mode === 'auto' && !gated) await this.autoBuy(userId, cand.id, mint, summary.symbol, callerRule === 'trusted')
     } finally {
       this.inFlight.delete(key)
     }
   }
 
   // Otomatik mod: aday "bekliyor → onaylandı" geçişini kazanan motor alır
-  private async autoBuy(userId: string, candidateId: string, mint: string, symbol?: string): Promise<void> {
+  private async autoBuy(userId: string, candidateId: string, mint: string, symbol?: string, trusted = false): Promise<void> {
     const ctx = this.ctx
     const { rule, canTrade } = await ctx.users.fresh(userId)
     if (rule.mode !== 'auto' || !canTrade) return
@@ -163,7 +176,8 @@ export class Pipeline {
       return
     }
 
-    const amount = Math.min(rule.limits.autoBuySol, rule.limits.maxBuySol)
+    const mult = trusted ? Math.max(1, Math.min(rule.limits.trustedBuyMult || 1, 5)) : 1
+    const amount = Math.min(rule.limits.autoBuySol * mult, rule.limits.maxBuySol)
     const { data: won } = await ctx.db
       .from('candidates')
       .update({ status: 'approved', amount_sol: amount, auto: true, decided_at: new Date().toISOString() })

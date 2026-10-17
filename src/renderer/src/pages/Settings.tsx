@@ -11,6 +11,7 @@ import {
   Search,
   SlidersHorizontal,
   Star,
+  Trophy,
   UserCog,
   UserRound,
   Users,
@@ -28,6 +29,7 @@ import { WalletsSection } from './settings/Wallets'
 import { ConnectionsSection } from './settings/Connections'
 import { AboutSection } from './settings/About'
 import { AccountSection } from './settings/Account'
+import { CallersSection } from './settings/Callers'
 import { SourcesPage } from './Sources'
 import { RulesPage } from './Rules'
 import { UsersPage } from './Users'
@@ -48,6 +50,7 @@ const MENU: { group: string; items: Item[] }[] = [
     group: 'İşlem',
     items: [
       { id: 'rules', label: 'Kurallar', icon: SlidersHorizontal },
+      { id: 'callers', label: 'Çağrıcılar', icon: Trophy },
       { id: 'connections', label: 'GMGN ve motor', icon: Plug }
     ]
   },
@@ -143,6 +146,7 @@ export function SettingsPage() {
           {section === 'appearance' && <AppearanceSection />}
           {section === 'keywords' && <KeywordsSection />}
           {section === 'rules' && <RulesPage />}
+          {section === 'callers' && <CallersSection />}
           {section === 'connections' && <ConnectionsSection />}
           {section === 'deploy' && <DeploySettingsSection />}
           {section === 'wallets' && <WalletsSection />}

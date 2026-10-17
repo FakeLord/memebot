@@ -30,6 +30,8 @@ export interface DSignal {
   mint: string
   source_id: string | null
   received_at: string
+  /** Telegram grubunda mesajı yazan kişi (kanal/X/elle sinyalde yok) */
+  sender_id?: string | null
 }
 
 export interface DCandidate {
@@ -271,4 +273,126 @@ export function sourcePerformance(positions: DPosition[], signals: DSignal[], so
     r.roi = r.cost > 0 ? r.pnl / r.cost : null
   }
   return out.sort((a, b) => b.pnl - a.pnl || b.trades - a.trades || b.signals - a.signals)
+}
+
+
+// ---------------------------------------------------------------- çağrıcılar (Telegram grup üyeleri)
+export type CallerRule = 'normal' | 'trusted' | 'blocked'
+
+export interface DCaller {
+  sender_id: string
+  name: string | null
+  handle: string | null
+  rule: CallerRule
+}
+
+export type Period = 'day' | 'week' | 'month'
+export const PERIOD_DAYS: Record<Period, number> = { day: 1, week: 7, month: 30 }
+export const PERIOD_LABEL: Record<Period, string> = { day: 'Bugün', week: 'Son 7 gün', month: 'Son 30 gün' }
+
+export interface CallerRow {
+  senderId: string
+  name: string
+  handle: string | null
+  rule: CallerRule
+  /** kişinin çağrılarının geldiği gruplar */
+  groups: string[]
+  /** dönemde KAPANAN işlemler */
+  trades: number
+  wins: number
+  losses: number
+  winrate: number | null
+  /** dönemde kapanan işlemlerin toplam kâr/zararı (SOL) */
+  pnl: number
+  cost: number
+  roi: number | null
+}
+
+/** Pozisyonu açan sinyal: açılıştan önceki son sinyal; yoksa en erken sinyal (kaynak performansıyla aynı kural). */
+function signalOf(p: DPosition, byMint: Map<string, DSignal[]>): DSignal | undefined {
+  const list = byMint.get(p.mint) ?? []
+  const before = list.filter((s) => s.received_at <= p.opened_at)
+  return before.length ? before[before.length - 1] : list[0]
+}
+
+function signalsByMint(signals: DSignal[]): Map<string, DSignal[]> {
+  const byMint = new Map<string, DSignal[]>()
+  for (const s of signals) byMint.set(s.mint, [...(byMint.get(s.mint) ?? []), s])
+  for (const list of byMint.values()) list.sort((a, b) => a.received_at.localeCompare(b.received_at))
+  return byMint
+}
+
+/**
+ * Çağrıcı tablosu: dönemde (bugün / son 7 / son 30 gün) KAPANAN işlemlerin kâr/zararı, işlemi açan sinyali
+ * paylaşan kişiye yazılır. Gönderenin bilinmediği işlemler (kanal, X, elle alım) tabloya girmez.
+ * Sıralama: en çok kazandıran ilk.
+ */
+export function callerLeaderboard(
+  positions: DPosition[],
+  signals: DSignal[],
+  callers: DCaller[],
+  sources: DSource[],
+  mode: Mode,
+  period: Period,
+  now = new Date()
+): CallerRow[] {
+  const since = startOfDay(now, PERIOD_DAYS[period] - 1)
+  const byMint = signalsByMint(signals)
+  const meta = new Map(callers.map((c) => [c.sender_id, c]))
+  const titles = new Map(sources.map((s) => [s.id, s.title]))
+  const rows = new Map<string, CallerRow>()
+  for (const p of positions) {
+    if (p.status !== 'closed' || !p.closed_at || !inMode(mode, p.is_dry_run)) continue
+    if (new Date(p.closed_at).getTime() < since) continue
+    const sig = signalOf(p, byMint)
+    if (!sig?.sender_id) continue
+    const c = meta.get(sig.sender_id)
+    let r = rows.get(sig.sender_id)
+    if (!r) {
+      r = { senderId: sig.sender_id, name: c?.name || c?.handle || 'Bilinmeyen', handle: c?.handle ?? null, rule: c?.rule ?? 'normal', groups: [], trades: 0, wins: 0, losses: 0, winrate: null, pnl: 0, cost: 0, roi: null }
+      rows.set(sig.sender_id, r)
+    }
+    const pnl = positionPnl(p) ?? 0
+    r.trades++
+    r.pnl += pnl
+    r.cost += n(p.cost_sol)
+    if (pnl > 0) r.wins++
+    else if (pnl < 0) r.losses++
+    const g = sig.source_id ? titles.get(sig.source_id) : undefined
+    if (g && !r.groups.includes(g)) r.groups.push(g)
+  }
+  const out = [...rows.values()]
+  for (const r of out) {
+    r.winrate = r.trades ? r.wins / r.trades : null
+    r.roi = r.cost > 0 ? r.pnl / r.cost : null
+  }
+  return out.sort((a, b) => b.pnl - a.pnl || b.trades - a.trades)
+}
+
+/** "En çok kazandıran 10": yalnız kâr getirenler. */
+export const topEarners = (rows: CallerRow[], limit = 10) => rows.filter((r) => r.pnl > 0).slice(0, limit)
+
+export interface CallerSuggestion {
+  senderId: string
+  name: string
+  suggest: 'trusted' | 'blocked'
+  trades: number
+  winrate: number
+  pnl: number
+}
+
+// Öneri eşikleri: son 30 günde en az bu kadar kapanan işlem olmadan öneri verilmez
+export const SUGGEST_MIN_TRADES = 5
+export const SUGGEST_TRUST_WINRATE = 0.6
+export const SUGGEST_BLOCK_WINRATE = 0.3
+
+/** Son 30 günlük performansa göre "güvenilir yap" / "engelle" önerileri. Hiçbir şey kendiliğinden değişmez; kullanıcı onaylar. */
+export function callerSuggestions(positions: DPosition[], signals: DSignal[], callers: DCaller[], sources: DSource[], mode: Mode, now = new Date()): CallerSuggestion[] {
+  const out: CallerSuggestion[] = []
+  for (const r of callerLeaderboard(positions, signals, callers, sources, mode, 'month', now)) {
+    if (r.rule !== 'normal' || r.trades < SUGGEST_MIN_TRADES || r.winrate === null) continue
+    if (r.pnl > 0 && r.winrate >= SUGGEST_TRUST_WINRATE) out.push({ senderId: r.senderId, name: r.name, suggest: 'trusted', trades: r.trades, winrate: r.winrate, pnl: r.pnl })
+    else if (r.pnl < 0 && r.winrate <= SUGGEST_BLOCK_WINRATE) out.push({ senderId: r.senderId, name: r.name, suggest: 'blocked', trades: r.trades, winrate: r.winrate, pnl: r.pnl })
+  }
+  return out
 }

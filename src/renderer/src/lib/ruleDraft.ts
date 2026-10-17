@@ -18,6 +18,7 @@ export function validateRule(r: Rule): string | null {
   if (!(l.maxBuySol > 0 && l.maxBuySol <= 5)) return 'İşlem başı maks. tutar 0 ile 5 SOL arasında olmalı.'
   if (r.mode === 'auto' && !(l.autoBuySol > 0 && l.autoBuySol <= l.maxBuySol))
     return "Otomatik alım tutarı 0'dan büyük ve işlem başı maks. tutardan küçük olmalı."
+  if (!(l.trustedBuyMult >= 1 && l.trustedBuyMult <= 5)) return 'Güvenilir kişi çarpanı 1 ile 5 arasında olmalı.'
   for (const t of r.tpSl) {
     const ratio = Number(t.sell_ratio)
     if (!(ratio >= 1 && ratio <= 100)) return 'TP/SL satış oranı 1–100 olmalı.'

@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 import { useAuth } from './auth'
 import { useEngine } from './engine'
 import { usePipeline } from './pipeline'
-import type { DCandidate, DOrder, DPosition, DSignal, DSource, Mode } from '../../../shared/dashboard'
+import type { DCaller, DCandidate, DOrder, DPosition, DSignal, DSource, Mode } from '../../../shared/dashboard'
 import { startOfDay } from '../../../shared/dashboard'
 import type { DashGmgn } from '../../../shared/engine'
 
@@ -23,6 +23,7 @@ export interface DashData {
   positions: DPosition[]
   orders: DOrder[]
   signals: DSignal[]
+  callers: DCaller[]
   candidates: DCandidate[]
   sources: DSource[]
   pending: PendingCandidate[]
@@ -50,7 +51,7 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 export function useDashboardData(): DashData {
   const { profile } = useAuth()
   const [state, setState] = useState<Omit<DashData, 'reload'>>({
-    positions: [], orders: [], signals: [], candidates: [], sources: [], pending: [], recentSignals: [], loaded: false, error: null
+    positions: [], orders: [], signals: [], callers: [], candidates: [], sources: [], pending: [], recentSignals: [], loaded: false, error: null
   })
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const alive = useRef(true)
@@ -62,21 +63,23 @@ export function useDashboardData(): DashData {
     const since30 = new Date(Date.now() - 30 * DAY).toISOString()
     const today = new Date(startOfDay(new Date())).toISOString()
     try {
-      const [open, closed, orders, signals, candidates, sources, pending, recent] = await Promise.all([
+      const [open, closed, orders, signals, candidates, sources, pending, recent, callers] = await Promise.all([
         fetchAll<DPosition>((a, b) => supabase.from('positions').select(POS_COLS).eq('user_id', uid).eq('status', 'open').order('opened_at', { ascending: false }).range(a, b)),
         fetchAll<DPosition>((a, b) => supabase.from('positions').select(POS_COLS).eq('user_id', uid).eq('status', 'closed').gte('closed_at', since90).order('closed_at', { ascending: false }).range(a, b)),
         fetchAll<DOrder>((a, b) => supabase.from('orders').select('side, status, is_dry_run, created_at, amount_in').eq('user_id', uid).gte('created_at', since90).order('created_at', { ascending: false }).range(a, b)),
-        fetchAll<DSignal>((a, b) => supabase.from('signals').select('mint, source_id, received_at').eq('user_id', uid).gte('received_at', since90).order('received_at', { ascending: false }).range(a, b), 10_000),
+        fetchAll<DSignal>((a, b) => supabase.from('signals').select('mint, source_id, received_at, sender_id').eq('user_id', uid).gte('received_at', since90).order('received_at', { ascending: false }).range(a, b), 10_000),
         fetchAll<DCandidate>((a, b) => supabase.from('candidates').select('status, created_at').eq('user_id', uid).gte('created_at', today).order('created_at', { ascending: false }).range(a, b)),
         supabase.from('sources').select('id, title, type').eq('user_id', uid),
         supabase.from('candidates').select('id, mint, verdict, summary, created_at, expires_at').eq('user_id', uid).eq('status', 'pending').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(8),
-        supabase.from('signals').select('id, mint, received_at, source_id').eq('user_id', uid).gte('received_at', since30).order('received_at', { ascending: false }).limit(8)
+        supabase.from('signals').select('id, mint, received_at, source_id').eq('user_id', uid).gte('received_at', since30).order('received_at', { ascending: false }).limit(8),
+        supabase.from('callers').select('sender_id, name, handle, rule').eq('user_id', uid)
       ])
       if (!alive.current) return
       setState({
         positions: [...open, ...closed],
         orders,
         signals,
+        callers: (callers.data as DCaller[]) ?? [],
         candidates,
         sources: (sources.data as DSource[]) ?? [],
         pending: (pending.data as PendingCandidate[]) ?? [],
@@ -104,7 +107,7 @@ export function useDashboardData(): DashData {
     void load()
     const t = setInterval(() => void load(), 30_000)
     const ch = supabase.channel(`dashboard-${profile.id}`)
-    for (const table of ['positions', 'orders', 'candidates', 'signals']) {
+    for (const table of ['positions', 'orders', 'candidates', 'signals', 'callers']) {
       ch.on('postgres_changes', { event: '*', schema: 'public', table, filter: `user_id=eq.${profile.id}` }, soon)
     }
     ch.subscribe()

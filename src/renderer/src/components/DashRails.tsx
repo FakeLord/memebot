@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Activity, CalendarDays, Flame, GripVertical, LayoutDashboard, Radio, ShieldCheck, Wallet } from 'lucide-react'
+import { Activity, CalendarDays, Flame, GripVertical, LayoutDashboard, Radio, ShieldCheck, Trophy, Wallet } from 'lucide-react'
 import { useDashboardData, useDashMode, useGmgnDash } from '../lib/dashboard'
 import { useNav } from '../lib/nav'
 import { usePrefs } from '../lib/prefs'
@@ -7,6 +7,7 @@ import { funnel, summarize } from '../../../shared/dashboard'
 import { Card, FunnelBars, ModeSwitch, OpenPositions, PendingList, PnlKpis, RecentSignals, TrendingList } from './DashWidgets'
 import { AlertList, HealthList, useHealth } from './DashHealth'
 import { PnlCalendar, WalletSummary } from './DashExtras'
+import { TopCallers } from './Callers'
 
 // Ana sayfanın (Canlı Akış) iki yanındaki paneller. Hangi kartların görüneceği ve yerleri kullanıcıya bağlı:
 // alt çubuktaki "Paneller" menüsünden eklenir/kaldırılır, kart başlığındaki tutamaçtan sürüklenir.
@@ -46,6 +47,7 @@ export const RAIL_WIDGETS = {
   pending: { title: 'Onay bekleyenler', icon: ShieldCheck, desc: 'Karar bekleyen adaylar' },
   wallet: { title: 'Cüzdan özeti', icon: Wallet, desc: 'Bakiye ve 7 günlük GMGN istatistiği' },
   calendar: { title: 'PnL takvimi', icon: CalendarDays, desc: 'Günlük kâr/zarar ısı haritası' },
+  callers: { title: 'En çok kazandıran 10', icon: Trophy, desc: 'Telegram grup üyeleri: gün / hafta / ay' },
   alerts: { title: 'Uyarılar', icon: Activity, desc: 'Limit ve bağlantı uyarıları' },
   system: { title: 'Sistem', icon: Activity, desc: 'Motor, GMGN, X, Telegram durumu' },
   funnel: { title: 'Bugünün hunisi', icon: Radio, desc: 'Sinyalden alıma süreç' },
@@ -134,6 +136,12 @@ function Widget({ id, r, onCheck, grip }: { id: WidgetId; r: RailData; onCheck: 
       return (
         <Card title="PnL takvimi" icon={icon} grip={grip}>
           <PnlCalendar positions={r.data.positions} mode={r.mode} />
+        </Card>
+      )
+    case 'callers':
+      return (
+        <Card title="En çok kazandıran 10" icon={icon} grip={grip} actions={link('Çağrıcılar', 'settings')}>
+          <TopCallers data={r.data} mode={r.mode} compact />
         </Card>
       )
     case 'alerts':
