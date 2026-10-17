@@ -10,6 +10,7 @@ import { usePrefs } from '../lib/prefs'
 import { useDeploy } from '../components/DeployPanel'
 import { FeedCard, type CardActions } from '../components/FeedCard'
 import { SignalsPanel } from './Signals'
+import { LeftRail, RightRail, useRailData } from '../components/DashRails'
 import { useSources } from './Sources'
 import type { FeedItem, KeywordRule } from '../../../shared/feed'
 import type { TelegramStatus } from '../../../shared/types'
@@ -24,6 +25,7 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
   const { open } = useDeploy()
   const { profile } = useAuth()
   const onDeploy = canTrade(profile?.role) ? open : undefined
+  const rail = useRailData()
   const tabs = (
     <div className="pills">
       <button className="pill" aria-selected={tab === 'feed'} onClick={() => setTab('feed')}>
@@ -35,7 +37,11 @@ export function FeedPage({ onCheck }: { onCheck: (mint: string) => void }) {
     </div>
   )
   return tab === 'feed' ? (
-    <FeedList onCheck={onCheck} onDeploy={onDeploy} keywords={keywords} tabs={tabs} />
+    <div className="feed-layout">
+      <LeftRail r={rail} />
+      <FeedList onCheck={onCheck} onDeploy={onDeploy} keywords={keywords} tabs={tabs} />
+      <RightRail r={rail} onCheck={onCheck} />
+    </div>
   ) : (
     <div className="page stack">
       {tabs}

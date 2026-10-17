@@ -79,9 +79,52 @@ export interface TweetStreamState {
   events?: number
 }
 
+/** GMGN'den toplanan dashboard verisi (engine_user_state.gmgn.dash). Para birimi: USD, cüzdan bakiyesi SOL. */
+export interface DashWalletStats {
+  realizedProfit: number
+  unrealizedProfit: number
+  winrate: number // 0–1
+  totalCost: number
+  buyCount: number
+  sellCount: number
+  pnl: number // oran: gerçekleşen kâr / maliyet
+}
+export interface DashProfit {
+  realizedProfit: number
+  unrealizedProfit: number
+  totalProfit: number
+  totalCost: number
+  buy?: number
+  sell?: number
+}
+export interface DashTrend {
+  rank: number
+  address: string
+  symbol: string
+  name?: string
+  logo?: string
+  price?: number
+  marketCap?: number
+  liquidity?: number
+  volume?: number
+  swaps?: number
+  holders?: number
+  change?: number // seçili aralıktaki fiyat değişimi, %
+  launchpad?: string
+}
+export interface DashGmgn {
+  at: number // son başarılı tazeleme (ms)
+  wallet?: string
+  balance?: number // SOL
+  stats?: { '7d'?: DashWalletStats; '30d'?: DashWalletStats }
+  profits?: { '1d'?: DashProfit; all?: DashProfit }
+  trending?: { interval: string; at: number; items: DashTrend[] }
+  error?: string | null
+}
+
 export interface EngineUserState {
   user_id: string
-  gmgn: { configured?: boolean; plan?: GmgnPlan; wallet?: string | null }
+  gmgn: { configured?: boolean; plan?: GmgnPlan; wallet?: string | null; dash?: DashGmgn }
   telegram: TelegramStatus | Record<string, never>
   x: {
     configured?: boolean

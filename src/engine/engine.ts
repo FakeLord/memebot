@@ -5,6 +5,7 @@ import { EngineContext, type EngineOptions } from './context'
 import { OrderEngine, type OrderRow } from './orders'
 import { Pipeline } from './pipeline'
 import { Tracker } from './tracker'
+import { DashboardFeed } from './dashboard'
 import { SourceHub } from './sources'
 import type { TweetStreamApi } from './tweetstream/client'
 import { Commands } from './commands'
@@ -32,6 +33,7 @@ export class Engine {
   readonly pipeline: Pipeline
   readonly tracker: Tracker
   readonly sources: SourceHub
+  readonly dashboard: DashboardFeed
   readonly commands: Commands
   readonly feed: FeedWriter
   readonly deploy: DeployEngine
@@ -50,8 +52,9 @@ export class Engine {
     this.tracker = new Tracker(this.ctx)
     this.feed = new FeedWriter(this.ctx, (id) => this.ctx.users.keywords(id))
     this.sources = new SourceHub(this.ctx, this.feed, o.xPoll, o.tsApi)
+    this.dashboard = new DashboardFeed(this.ctx)
     this.deploy = new DeployEngine(this.ctx)
-    this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, deploy: this.deploy, xPoll: o.xPoll })
+    this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, deploy: this.deploy, dashboard: this.dashboard, xPoll: o.xPoll })
   }
 
   get isActive(): boolean {
@@ -125,6 +128,7 @@ export class Engine {
     every(this.ctx.pollMs, () => this.pipeline.processPending())
     every(this.ctx.trackerMs, () => this.tracker.tick())
     every(30_000, () => this.pipeline.expireCandidates())
+    every(15_000, () => this.dashboard.tick())
     every(3600_000, async () => void (await this.feed.cleanup()))
     every(30_000, async () => {
       await users.load()

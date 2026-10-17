@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react'
 // Sayfa gezintisi: üst menüdeki sayfalar + Ayarlar'ın sol menü bölümleri.
 // Herhangi bir bileşen useNav().go(...) ile başka sayfaya/bölüme geçebilir.
 
-export type Page = 'feed' | 'approvals' | 'positions' | 'orders' | 'token' | 'speed' | 'settings'
+export type Page = 'feed' | 'dashboard' | 'approvals' | 'positions' | 'orders' | 'token' | 'speed' | 'settings'
 
 export type Section =
   | 'accounts'

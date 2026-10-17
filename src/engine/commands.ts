@@ -3,6 +3,7 @@ import type { OrderEngine } from './orders'
 import type { Pipeline } from './pipeline'
 import type { SourceHub } from './sources'
 import type { DeployEngine } from './deploy'
+import type { DashboardFeed } from './dashboard'
 import type { DeployForm } from '../shared/deploy'
 import { assertSigningKey } from './gmgn/signer'
 import { extractWallets } from './gmgn/trade'
@@ -43,6 +44,7 @@ export class Commands {
       pipeline: Pipeline
       sources: SourceHub
       deploy: DeployEngine
+      dashboard: DashboardFeed
       xPoll?: (apiKey: string, hitLimit?: number) => Promise<XPollResult>
     }
   ) {
@@ -74,12 +76,14 @@ export class Commands {
         const wallet = prev?.apiKey === apiKey ? prev.wallet : undefined
         vault.set(userId, 'gmgn', { apiKey, privateKeyPem: pem, plan: prev?.plan, wallet })
         gmgnState(userId)
+        deps.dashboard.reset(userId)
         await ctx.audit(userId, 'gmgn.key_saved')
         return { ok: true }
       },
       'gmgn.clear': async (userId) => {
         vault.set(userId, 'gmgn', undefined)
         gmgnState(userId)
+        deps.dashboard.reset(userId)
         await ctx.audit(userId, 'gmgn.key_cleared')
         return { ok: true }
       },

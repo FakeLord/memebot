@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Activity,
   CheckCheck,
+  LayoutDashboard,
   CircleDollarSign,
   Gauge,
   History,
@@ -44,7 +45,8 @@ const HEAD: Partial<Record<Page, { icon: LucideIcon; title: string; sub: string 
   positions: { icon: LineChart, title: 'Pozisyonlar', sub: 'Açık ve kapanan işlemler' },
   orders: { icon: ScrollText, title: 'Emirler', sub: 'Alım-satım geçmişi' },
   token: { icon: Search, title: 'Token Kontrol', sub: 'Adres ya da mesaj yapıştırın' },
-  speed: { icon: Activity, title: 'Hız', sub: 'API ve işlem süreleri' }
+  speed: { icon: Activity, title: 'Hız', sub: 'API ve işlem süreleri' },
+  dashboard: { icon: LayoutDashboard, title: 'Dashboard', sub: 'Kâr/zarar, pozisyonlar, kaynaklar ve sistem durumu' }
 }
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -162,6 +164,10 @@ function TopBar() {
         </button>
         <button className={`tb icon ${page === 'token' ? 'on' : ''}`} title="Token kontrol" onClick={() => go('token')}>
           <Search size={14} />
+        </button>
+        <button className={`tb ${page === 'dashboard' ? 'on' : ''}`} title="Dashboard: tüm veriler" onClick={() => go('dashboard')}>
+          <LayoutDashboard size={14} />
+          <span className="tb-label">Dashboard</span>
         </button>
         <button className={`tb icon ${page === 'speed' ? 'on' : ''}`} title="Hız: API ve işlem süreleri" onClick={() => go('speed')}>
           <Activity size={14} />

@@ -554,6 +554,50 @@ d('MemeBot Engine (yerel Supabase)', () => {
     expect(ts.sockets.size).toBe(0)
   })
 
+  it('dashboard: motor GMGN trend, bakiye ve cüzdan istatistiklerini durum satırına yazar; anahtar silinince temizler', async () => {
+    const dash = async () => (await dev.client.from('engine_user_state').select('gmgn').eq('user_id', dev.id).single()).data?.gmgn
+    await runSealed(dev.client, dev.id, 'gmgn.save', { apiKey: 'dash-test-key', privateKeyPem: pem })
+    const w = await runCommand(dev.client, dev.id, 'gmgn.wallets', {})
+    await runCommand(dev.client, dev.id, 'gmgn.wallet', { address: w.wallets[0].address })
+    const before = gmgn.calls.length
+    await engine.dashboard.tick()
+    const g = await waitFor(async () => {
+      const x = await dash()
+      return x?.dash?.at && x.dash.profits?.all ? x : null
+    })
+    expect(g.configured).toBe(true)
+    expect(g.dash.error).toBeNull()
+    expect(g.dash.balance).toBe(3)
+    expect(g.dash.wallet).toBe(w.wallets[0].address)
+    expect(g.dash.stats['7d']).toMatchObject({ realizedProfit: 125.5, unrealizedProfit: 12.1, winrate: 0.55, totalCost: 1000, buyCount: 12, sellCount: 9 })
+    expect(g.dash.stats['30d'].realizedProfit).toBe(410.25)
+    expect(g.dash.profits['1d']).toMatchObject({ totalProfit: 35, realizedProfit: 30 })
+    expect(g.dash.trending.items).toHaveLength(1) // sembolsüz satır atlanır
+    expect(g.dash.trending.items[0]).toMatchObject({ symbol: 'AAA', marketCap: 1_000_000, volume: 99_000, change: 12.5, holders: 800, launchpad: 'Pump.fun' })
+    // trend + bakiye + 2 istatistik + 2 kâr = 6 GMGN çağrısı
+    const fns = gmgn.calls.slice(before).map((c) => c.fn)
+    expect(fns.filter((f) => f === 'trending')).toHaveLength(1)
+    expect(fns.filter((f) => f === 'walletStats')).toHaveLength(2)
+    expect(fns.filter((f) => f === 'walletProfits')).toHaveLength(2)
+
+    // Süresi dolmadan ikinci tur GMGN'e gitmez (hız sınırını harcamaz)
+    const n = gmgn.calls.length
+    await engine.dashboard.tick()
+    expect(gmgn.calls.length).toBe(n)
+
+    // Anahtar silinince eski veri gösterilmez
+    await runCommand(dev.client, dev.id, 'gmgn.clear', {})
+    const after = await waitFor(async () => {
+      const x = await dash()
+      return x && x.configured === false ? x : null
+    })
+    expect(after.dash).toBeUndefined()
+
+    // Sonraki testler için anahtar ve cüzdan geri yüklenir
+    await runSealed(dev.client, dev.id, 'gmgn.save', { apiKey: 'dash-test-key', privateKeyPem: pem })
+    await runCommand(dev.client, dev.id, 'gmgn.wallet', { address: w.wallets[0].address })
+  })
+
   it('akış kartı: öneri ızgarası GMGN aramasıyla dolar; kullanıcı sadece gizle/sabitle yapabilir', async () => {
     gmgn.searchResults.set('dog', [{ address: mint(), name: 'Dog', symbol: 'DOG', price: '0.001', mcp: '50000' }])
     const id = await engine.feed.ingest(dev.id, null, {

@@ -18,6 +18,7 @@ import { TokenCheckPage } from './pages/TokenCheck'
 import { PositionsPage } from './pages/Positions'
 import { SettingsPage } from './pages/Settings'
 import { SpeedPage } from './pages/Speed'
+import { DashboardPage } from './pages/Dashboard'
 import { NavContext, type Page, type Section } from './lib/nav'
 
 export function App() {
@@ -108,6 +109,7 @@ function Gate() {
                 {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
                 {page === 'positions' && <PositionsPage />}
                 {page === 'orders' && <OrdersPage />}
+                {page === 'dashboard' && <DashboardPage onCheck={openCheck} />}
                 {page === 'speed' && <SpeedPage />}
                 {page === 'settings' && <SettingsPage />}
               </Layout>
@@ -136,7 +138,7 @@ function Shortcuts({ onNavigate }: { onNavigate: (p: Page) => void }) {
       e.preventDefault()
       const panel = (name: string) => window.dispatchEvent(new CustomEvent('memebot:panel', { detail: name }))
       if (action === 'preset1' || action === 'preset2' || action === 'preset3') setActivePreset(Number(action.slice(-1)) as 1 | 2 | 3)
-      else if (action === 'feed' || action === 'approvals' || action === 'positions' || action === 'orders' || action === 'token' || action === 'speed' || action === 'settings')
+      else if (action === 'feed' || action === 'dashboard' || action === 'approvals' || action === 'positions' || action === 'orders' || action === 'token' || action === 'speed' || action === 'settings')
         onNavigate(action)
       else if (action === 'deploy') window.dispatchEvent(new CustomEvent('memebot:deploy'))
       else if (action === 'feesPanel') panel('fees')

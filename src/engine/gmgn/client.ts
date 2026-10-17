@@ -52,7 +52,19 @@ function send(method: Method, path: string, query: Query, headers: Record<string
 // Motorun kullandığı GMGN yüzeyi; testlerde sahte istemci verilir.
 export type GmgnApi = Pick<
   GmgnClient,
-  'userInfo' | 'tokenInfo' | 'tokenSecurity' | 'tokenPrice' | 'quote' | 'swap' | 'queryOrder' | 'walletHoldings' | 'marketSearch' | 'createToken'
+  | 'userInfo'
+  | 'tokenInfo'
+  | 'tokenSecurity'
+  | 'tokenPrice'
+  | 'quote'
+  | 'swap'
+  | 'queryOrder'
+  | 'walletHoldings'
+  | 'marketSearch'
+  | 'createToken'
+  | 'walletStats'
+  | 'walletProfits'
+  | 'trending'
 >
 
 export class GmgnClient {
@@ -133,6 +145,17 @@ export class GmgnClient {
   // Ada/sembole göre token arama (akıştaki öneri ızgarası). Yanıt: { coins: [{ address, name, symbol, price, mcp, holder_count, … }] }
   marketSearch(q: string, chain = 'sol') {
     return this.call('GET', '/v1/market/search', { q: q.slice(0, 100), chain, order_by: 'weight' }, null, false, 1, Priority.Price, 0)
+  }
+  // --- dashboard (sadece API key, düşük öncelik; 429'da tekrar yok)
+  walletStats(wallet: string, period: '7d' | '30d', chain = 'sol') {
+    return this.call('GET', '/v1/user/wallet_stats', { chain, wallet_address: [wallet], period }, null, false, 3, Priority.Price, 0)
+  }
+  walletProfits(wallet: string, period: '1d' | '7d' | '30d' | 'all', chain = 'sol') {
+    return this.call('POST', '/v1/user/wallet_profits', {}, { chain, period, wallet_addresses: [wallet] }, false, 3, Priority.Price, 0)
+  }
+  // Yanıt: { rank: [{ address, symbol, name, logo, price, market_cap, liquidity, volume, swaps, holder_count, price_change_percent, … }] }
+  trending(interval: '1m' | '5m' | '1h' | '6h' | '24h', limit = 12, chain = 'sol') {
+    return this.call('GET', '/v1/market/rank', { chain, interval, order_by: 'volume', direction: 'desc', limit }, null, false, 3, Priority.Price, 0)
   }
   gasPrice(chain = 'sol') {
     return this.call('GET', '/v1/trade/gas_price', { chain }, null, false, 1, Priority.Order)

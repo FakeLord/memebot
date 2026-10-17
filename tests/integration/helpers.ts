@@ -92,6 +92,20 @@ export class FakeGmgn implements GmgnApi {
     this.calls.push({ fn: 'userInfo', args: null })
     return this.ok({ wallets: this.wallets })
   }
+  statsCalls = 0
+  async walletStats(_w: string, period: string) {
+    this.statsCalls++
+    this.calls.push({ fn: 'walletStats', args: period })
+    return this.ok({ realized_profit: period === '7d' ? '125.5' : '410.25', unrealized_profit: '12.1', winrate: period === '7d' ? 0.55 : 0.6, total_cost: '1000', buy_count: 12, sell_count: 9, pnl: 0.1255 })
+  }
+  async walletProfits(_w: string, period: string) {
+    this.calls.push({ fn: 'walletProfits', args: period })
+    return this.ok({ list: [{ realized_profit: '30', unrealized_profit: '5', total_profit: '35', total_cost: '200', buy: 3, sell: 2 }] })
+  }
+  async trending(interval: string) {
+    this.calls.push({ fn: 'trending', args: interval })
+    return this.ok({ rank: [{ rank: 1, address: 'So11111111111111111111111111111111111111112', symbol: 'AAA', name: 'Aaa', price: '0.5', market_cap: '1000000', liquidity: '50000', volume: '99000', swaps: 320, holder_count: 800, price_change_percent: '12.5', launchpad_platform: 'Pump.fun' }, { address: 'x', symbol: '' }] })
+  }
   async tokenInfo(mint: string) {
     this.calls.push({ fn: 'tokenInfo', args: mint })
     const t = this.tokens.get(mint) ?? { price: 0.0001 }
