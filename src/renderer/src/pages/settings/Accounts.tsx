@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { useNav } from '../../lib/nav'
 import { XLogo } from '../../components/FeedCard'
+import { errText, useEngine } from '../../lib/engine'
+import { splitHandles } from '../TweetStreamSection'
 import { parseCsv, toCsv } from '../../../../shared/settings'
 
 // Hesaplar: (1) Benim hesaplarım — izlediğim Telegram kanalları ve X hesapları (izle, sessize al, bildirim)
@@ -130,8 +132,28 @@ export function AccountsSection() {
 function MyAccounts({ q, platform, setCount }: { q: string; platform: Platform; setCount: (n: number) => void }) {
   const { profile } = useAuth()
   const { go } = useNav()
+  const { me, online, run } = useEngine()
   const [rows, setRows] = useState<MySource[]>([])
   const [page, setPage] = useState(0)
+  const [adding, setAdding] = useState<string | null>(null)
+  const [addMsg, setAddMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const tsReady = me?.x?.ts?.configured === true
+
+  // TweetStream bağlıysa X hesabı doğrudan @kullanıcı adıyla eklenir; değilse Kaynaklar'a yönlendirilir
+  const addX = async (e: FormEvent) => {
+    e.preventDefault()
+    const list = splitHandles(adding ?? '')
+    if (!list.length) return
+    try {
+      const r = await run('tweetstream.add', { handles: list })
+      const ok = r.results.filter((x) => x.state === 'added' || x.state === 'already_following').length
+      setAddMsg({ kind: ok ? 'ok' : 'error', text: r.results.map((x) => `${x.input}: ${x.state === 'added' ? 'eklendi' : x.state === 'already_following' ? 'zaten izleniyor' : x.state === 'not_found' ? "X'te bulunamadı" : x.message ?? 'eklenemedi'}`).join(' · ') })
+      if (ok) setAdding(null)
+      load()
+    } catch (err) {
+      setAddMsg({ kind: 'error', text: errText(err) })
+    }
+  }
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -222,10 +244,23 @@ function MyAccounts({ q, platform, setCount }: { q: string; platform: Platform; 
           <Download size={13} /> Dışa aktar
         </button>
         <span className="spacer" />
-        <button className="btn btn-sm btn-primary" onClick={() => go('settings', 'sources')}>
+        <button className="btn btn-sm btn-primary" onClick={() => (tsReady ? setAdding(adding === null ? '' : null) : go('settings', 'sources'))} title={tsReady ? 'X hesabı ekle (TweetStream)' : 'Kaynaklar: Telegram ve X bağlantıları'}>
           <Plus size={13} /> Hesap ekle
         </button>
       </div>
+      {addMsg && <div className={`notice ${addMsg.kind}`}>{addMsg.text}</div>}
+      {adding !== null && (
+        <form className="row card" style={{ padding: 10, flexWrap: 'nowrap' }} onSubmit={addX}>
+          <XLogo size={12} />
+          <input style={{ flex: 1 }} value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="@kullanici, @ikinci" autoFocus spellCheck={false} />
+          <button className="btn btn-primary" disabled={!online || !splitHandles(adding).length}>
+            Ekle
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setAdding(null)}>
+            Kapat
+          </button>
+        </form>
+      )}
     </>
   )
 }

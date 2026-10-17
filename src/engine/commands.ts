@@ -7,6 +7,7 @@ import type { DeployForm } from '../shared/deploy'
 import { assertSigningKey } from './gmgn/signer'
 import { extractWallets } from './gmgn/trade'
 import { pollMonitors } from './xflux/client'
+import { normalizeHandle } from './tweetstream/client'
 import { isLikelyMint } from '../shared/extract'
 import { openSealed, sealAad, type Sealed } from '../shared/seal'
 import { SEAL_PURPOSE, type CommandKind } from '../shared/engine'
@@ -135,6 +136,75 @@ export class Commands {
       'xflux.clear': async (userId) => {
         vault.set(userId, 'xflux', undefined)
         deps.sources.syncX(userId)
+        return { ok: true }
+      },
+      'tweetstream.save': async (userId, p) => {
+        const s = await this.open<{ apiKey?: string; region?: string }>(userId, 'tweetstream.save', p)
+        const key = String(s.apiKey ?? '').trim()
+        if (key.length < 8 || /\s/.test(key)) throw new CommandError('TweetStream API anahtarı geçersiz görünüyor')
+        // Kaydetmeden önce dene: yanlış anahtar ya da biten abonelik saklanmasın
+        const me = await deps.sources.tsApi.me(key)
+        if (!me.ok) {
+          if (me.status === 401) throw new CommandError('TweetStream anahtarı reddedildi')
+          if (me.status === 403) throw new CommandError('TweetStream aboneliği etkin değil (deneme ya da ücretli plan gerekli)')
+          throw new CommandError(`TweetStream'e ulaşılamadı: ${me.error}`)
+        }
+        const region = s.region === 'usa' ? 'usa' : 'global'
+        vault.set(userId, 'tweetstream', { apiKey: key, region })
+        deps.sources.syncTs(userId, true)
+        await ctx.audit(userId, 'tweetstream.key_saved', { plan: me.data.plan })
+        return { ok: true, plan: me.data.plan, count: me.data.tracked.count, limit: me.data.tracked.limit }
+      },
+      'tweetstream.clear': async (userId) => {
+        vault.set(userId, 'tweetstream', undefined)
+        deps.sources.syncTs(userId)
+        await ctx.audit(userId, 'tweetstream.key_cleared')
+        return { ok: true }
+      },
+      'tweetstream.region': async (userId, p) => {
+        const t = vault.get(userId).tweetstream
+        if (!t) throw new CommandError('TweetStream anahtarı girilmemiş')
+        vault.set(userId, 'tweetstream', { ...t, region: p.region === 'usa' ? 'usa' : 'global' })
+        deps.sources.syncTs(userId, true)
+        return { ok: true }
+      },
+      'tweetstream.add': async (userId, p) => {
+        const key = vault.get(userId).tweetstream?.apiKey
+        if (!key) throw new CommandError('TweetStream anahtarı girilmemiş')
+        const raw = (Array.isArray(p.handles) ? p.handles : []).map(String).slice(0, 100)
+        // Geçersiz girdiler sessizce düşmesin: sonuçta "geçersiz ad" olarak döner
+        const invalid = raw.filter((h) => !normalizeHandle(h)).map((input) => ({ input, state: 'invalid_input' }))
+        const handles = [...new Set(raw.map((h) => normalizeHandle(h)).filter((h): h is string => !!h))]
+        if (!handles.length) throw new CommandError('Geçerli bir X kullanıcı adı girin (ör. @kullanici)')
+        const r = await deps.sources.tsApi.add(key, handles)
+        if (!r.ok) throw new CommandError(r.status === 429 ? 'Çok fazla istek; biraz sonra tekrar deneyin' : `TweetStream: ${r.error}`)
+        const ok = r.data.filter((x) => x.state === 'added' || x.state === 'already_following').map((x) => normalizeHandle(x.input)).filter((h): h is string => !!h)
+        if (ok.length) {
+          await ctx.db
+            .from('sources')
+            .upsert(ok.map((h) => ({ user_id: userId, type: 'x', chat_id: `ts:${h}`, title: `@${h}`, is_active: true })), { onConflict: 'user_id,type,chat_id' })
+          await deps.sources.reloadSources()
+        }
+        void deps.sources.refreshTs(userId)
+        await ctx.audit(userId, 'tweetstream.add', { handles: ok })
+        return { results: [...r.data, ...invalid] }
+      },
+      'tweetstream.remove': async (userId, p) => {
+        const key = vault.get(userId).tweetstream?.apiKey
+        if (!key) throw new CommandError('TweetStream anahtarı girilmemiş')
+        const handle = normalizeHandle(String(p.handle ?? ''))
+        if (!handle) throw new CommandError('Geçersiz kullanıcı adı')
+        const r = await deps.sources.tsApi.remove(key, [handle])
+        if (!r.ok) throw new CommandError(`TweetStream: ${r.error}`)
+        await ctx.db.from('sources').delete().eq('user_id', userId).eq('type', 'x').eq('chat_id', `ts:${handle}`)
+        await deps.sources.reloadSources()
+        void deps.sources.refreshTs(userId)
+        await ctx.audit(userId, 'tweetstream.remove', { handle })
+        return { results: r.data }
+      },
+      'tweetstream.refresh': async (userId) => {
+        if (!vault.get(userId).tweetstream) throw new CommandError('TweetStream anahtarı girilmemiş')
+        await deps.sources.refreshTs(userId)
         return { ok: true }
       },
       'telegram.login': async (userId, p) => {

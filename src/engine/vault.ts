@@ -24,6 +24,7 @@ export interface TelegramSecret {
 export interface UserSecrets {
   gmgn?: GmgnSecret
   xflux?: { apiKey: string }
+  tweetstream?: { apiKey: string; region?: 'global' | 'usa' }
   telegram?: TelegramSecret
 }
 

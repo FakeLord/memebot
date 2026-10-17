@@ -147,7 +147,8 @@ export function SpeedPage() {
         <Stat label="Son GMGN gecikmesi" value={fmt(live)} tone={tone(live, 300, 800)} />
         <Stat label="Uçtan uca (ortanca)" value={fmt(e2e?.med)} tone={tone(e2e?.med, 1000, 2500)} />
         <Stat label="Veritabanı (ortanca)" value={fmt(db?.med)} tone={tone(db?.med, 150, 400)} />
-        <Stat label="X yoklama aralığı" value={xs?.intervalMs ? fmt(xs.intervalMs) : '—'} />
+        <Stat label="TweetStream son gecikme" value={fmt(xs?.ts?.lastLatencyMs)} tone={tone(xs?.ts?.lastLatencyMs, 1000, 3000)} />
+        <Stat label="XFlux yoklama aralığı" value={xs?.intervalMs ? fmt(xs.intervalMs) : '—'} />
       </div>
 
       <Section

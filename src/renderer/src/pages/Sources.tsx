@@ -7,6 +7,7 @@ import { XLogo } from '../components/FeedCard'
 import { Section, SettingRow, Stat, StatusPill } from '../components/ui'
 import type { TelegramChat, TelegramStatus } from '../../../shared/types'
 import type { XState } from '../../../shared/engine'
+import { TweetStreamSection } from './TweetStreamSection'
 
 // Kaynaklar: Telegram oturumu ve XFlux anahtarı motorda çalışır. Bu ekran girişleri mühürlü komutla motora
 // iletir, izlenecek kanal/hesapları "sources" tablosuna yazar; motor değişikliği anında görür.
@@ -64,11 +65,17 @@ export function SourcesPage() {
       <div className="stat-grid" style={{ marginBottom: 22 }}>
         <Stat label="Telegram" value={tg.state === 'connected' ? 'Bağlı' : 'Bağlı değil'} tone={tg.state === 'connected' ? 'pos' : 'neg'} />
         <Stat label="İzlenen kanal" value={tgSources.filter((s) => s.is_active).length} />
+        <Stat
+          label="X (TweetStream)"
+          value={x.ts?.state === 'live' ? 'Canlı' : x.ts?.configured ? 'Bağlanıyor' : 'Anahtar yok'}
+          tone={x.ts?.state === 'live' ? 'pos' : x.ts?.configured ? 'warn' : 'neg'}
+        />
         <Stat label="X (XFlux)" value={X_STATE[xState]} tone={xState === 'polling' ? 'pos' : xState === 'starting' ? 'warn' : 'neg'} />
         <Stat label="İzlenen X hesabı" value={xSources.filter((s) => s.is_active).length} />
       </div>
       <TelegramSection />
       <ChatsSection />
+      <TweetStreamSection />
       <XSection />
     </div>
   )
@@ -358,7 +365,7 @@ function XSection() {
   return (
     <Section
       icon={() => <XLogo size={11} />}
-      title="X / Twitter (XFlux)"
+      title="X / Twitter (XFlux · yedek)"
       count={x.monitors?.length}
       actions={<StatusPill tone={tone}>{X_STATE[state]}</StatusPill>}
       note={

@@ -19,6 +19,12 @@ export interface EngineCommands {
   'token.check': [{ mints: string[] }, { results: TokenCheckResult[] }]
   'xflux.save': [{ sealed: Sealed }, { ok: true }]
   'xflux.clear': [Record<string, never>, { ok: true }]
+  'tweetstream.save': [{ sealed: Sealed }, { ok: true; plan?: string; count: number; limit?: number }]
+  'tweetstream.clear': [Record<string, never>, { ok: true }]
+  'tweetstream.region': [{ region: 'global' | 'usa' }, { ok: true }]
+  'tweetstream.add': [{ handles: string[] }, { results: { input: string; state: string; message?: string }[] }]
+  'tweetstream.remove': [{ handle: string }, { results: { input: string; state: string; message?: string }[] }]
+  'tweetstream.refresh': [Record<string, never>, { ok: true }]
   'telegram.login': [{ sealed: Sealed }, { ok: true }]
   'telegram.code': [{ sealed: Sealed }, { ok: true }]
   'telegram.password': [{ sealed: Sealed }, { ok: true }]
@@ -36,6 +42,7 @@ export type CommandOutput<K extends CommandKind> = EngineCommands[K][1]
 export const SEAL_PURPOSE: Partial<Record<CommandKind, string>> = {
   'gmgn.save': 'gmgn',
   'xflux.save': 'xflux',
+  'tweetstream.save': 'tweetstream',
   'telegram.login': 'telegram.login',
   'telegram.code': 'telegram.code',
   'telegram.password': 'telegram.password'
@@ -56,6 +63,22 @@ export interface XMonitorState {
 
 export type XState = 'no_key' | 'starting' | 'polling' | 'error'
 
+/** TweetStream akışının durumu (engine_user_state.x.ts). */
+export interface TweetStreamState {
+  configured?: boolean
+  state?: 'connecting' | 'live' | 'reconnecting' | 'error' | 'no_key'
+  error?: string | null
+  region?: 'global' | 'usa'
+  plan?: string
+  count?: number
+  limit?: number
+  handles?: string[]
+  connectedAt?: number
+  lastEventAt?: number
+  lastLatencyMs?: number
+  events?: number
+}
+
 export interface EngineUserState {
   user_id: string
   gmgn: { configured?: boolean; plan?: GmgnPlan; wallet?: string | null }
@@ -68,6 +91,7 @@ export interface EngineUserState {
     intervalMs?: number
     lastPollAt?: number
     monitors?: XMonitorState[]
+    ts?: TweetStreamState
   }
   pipeline: { state?: 'idle' | 'no_key' | 'working'; lastError?: string | null }
   notice: string | null

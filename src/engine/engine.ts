@@ -6,6 +6,7 @@ import { OrderEngine, type OrderRow } from './orders'
 import { Pipeline } from './pipeline'
 import { Tracker } from './tracker'
 import { SourceHub } from './sources'
+import type { TweetStreamApi } from './tweetstream/client'
 import { Commands } from './commands'
 import { FeedWriter } from './feed'
 import { DeployEngine } from './deploy'
@@ -22,6 +23,7 @@ const CLAIM_TTL_SEC = 30
 export interface EngineStartOptions extends EngineOptions {
   instanceId?: string
   xPoll?: (apiKey: string, hitLimit?: number) => Promise<XPollResult>
+  tsApi?: TweetStreamApi
 }
 
 export class Engine {
@@ -47,7 +49,7 @@ export class Engine {
     this.pipeline = new Pipeline(this.ctx, this.orders)
     this.tracker = new Tracker(this.ctx)
     this.feed = new FeedWriter(this.ctx, (id) => this.ctx.users.keywords(id))
-    this.sources = new SourceHub(this.ctx, this.feed, o.xPoll)
+    this.sources = new SourceHub(this.ctx, this.feed, o.xPoll, o.tsApi)
     this.deploy = new DeployEngine(this.ctx)
     this.commands = new Commands(this.ctx, { orders: this.orders, pipeline: this.pipeline, sources: this.sources, deploy: this.deploy, xPoll: o.xPoll })
   }

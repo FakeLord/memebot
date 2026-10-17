@@ -59,8 +59,16 @@ function SourceChips() {
         {tg.state === 'connected' ? `Telegram · ${tgCount} kanal` : 'Telegram bağlı değil'}
       </span>
       <span>
-        <span className={`dot ${x.state === 'polling' && xCount > 0 ? 'on' : 'off'}`} />
-        {!x.configured ? 'X bağlı değil' : x.state === 'error' ? `X hatası: ${x.error ?? ''}` : `X · ${xCount} hesap`}
+        <span className={`dot ${(x.ts?.state === 'live' || x.state === 'polling') && xCount > 0 ? 'on' : x.ts?.state === 'reconnecting' ? 'wait' : 'off'}`} />
+        {x.ts?.state === 'live'
+          ? `X · ${xCount} hesap · canlı`
+          : x.ts?.configured
+            ? `X · TweetStream ${x.ts.state === 'error' ? `hatası: ${x.ts.error ?? ''}` : 'bağlanıyor'}`
+            : !x.configured
+              ? 'X bağlı değil'
+              : x.state === 'error'
+                ? `X hatası: ${x.error ?? ''}`
+                : `X · ${xCount} hesap`}
       </span>
     </div>
   )

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { GmgnApi } from '../../src/engine/gmgn/client'
 import type { GmgnResult } from '../../src/shared/types'
+import { normalizeHandle, type TsRegion, type TsResult, type TsSocket, type TsSocketHandlers, type TweetStreamApi } from '../../src/engine/tweetstream/client'
 
 // Yerel Supabase (Docker) üzerinde entegrasyon testi yardımcıları.
 // Anahtarlar yerel geliştirme anahtarlarıdır (supabase status); gerçek projeye dokunulmaz.
@@ -163,5 +164,70 @@ export class FakeGmgn implements GmgnApi {
   }
   async walletHoldings() {
     return this.ok({ list: this.holdingsList, next: null })
+  }
+}
+
+// Sahte TweetStream: izlenen hesap listesini tutar, bağlı akışlara gönderi iter.
+export class FakeTweetStream implements TweetStreamApi {
+  handles = new Set<string>()
+  keys = new Set<string>(['ts_test_key_1234'])
+  plan = 'ELITE'
+  limit = 250
+  sockets = new Set<TsSocketHandlers>()
+  connects = 0
+
+  private check(apiKey: string): TsResult<never> | null {
+    return this.keys.has(apiKey) ? null : { ok: false, status: 401, error: 'Invalid API key' }
+  }
+  async me(apiKey: string) {
+    return this.check(apiKey) ?? { ok: true as const, data: { plan: this.plan, tracked: { count: this.handles.size, limit: this.limit, handles: [...this.handles] } } }
+  }
+  async add(apiKey: string, handles: string[]) {
+    const bad = this.check(apiKey)
+    if (bad) return bad
+    const results = handles.map((h) => {
+      const n = normalizeHandle(h)
+      if (!n) return { input: h, state: 'invalid_input' as const }
+      const had = this.handles.has(n)
+      this.handles.add(n)
+      return { input: h, state: had ? ('already_following' as const) : ('added' as const) }
+    })
+    return { ok: true as const, data: results }
+  }
+  async remove(apiKey: string, handles: string[]) {
+    const bad = this.check(apiKey)
+    if (bad) return bad
+    return { ok: true as const, data: handles.map((h) => ({ input: h, state: this.handles.delete(normalizeHandle(h) ?? '') ? ('removed' as const) : ('not_following' as const) })) }
+  }
+  connect(apiKey: string, _region: TsRegion, h: TsSocketHandlers): TsSocket {
+    this.connects++
+    if (!this.keys.has(apiKey)) {
+      setTimeout(() => h.close(1008, 'unauthorized'), 5)
+      return { close: () => undefined }
+    }
+    this.sockets.add(h)
+    setTimeout(() => h.open(), 5)
+    return { close: () => void this.sockets.delete(h) }
+  }
+  /** İzlenen bir hesabın gönderisini bağlı tüm akışlara it. */
+  push(handle: string, text: string, extra: Record<string, unknown> = {}) {
+    const tweetId = String(1900000000000000000n + BigInt(Date.now()) + BigInt(Math.floor(Math.random() * 1000)))
+    const e = {
+      v: 1,
+      t: 'tweet',
+      op: 'content',
+      id: tweetId,
+      ts: Date.now(),
+      d: { tweetId, kind: 'post', text, createdAt: Date.now() - 150, author: { handle: `@${handle}`, name: handle, platform: 'twitter', followersCount: 1234, verifiedType: 'blue' }, ...extra }
+    }
+    for (const s of this.sockets) s.event(e)
+    return tweetId
+  }
+  /** Bağlantıyı sunucu tarafından kopar (yeniden bağlanma testi). */
+  drop() {
+    for (const s of [...this.sockets]) {
+      this.sockets.delete(s)
+      s.close(1006, '')
+    }
   }
 }

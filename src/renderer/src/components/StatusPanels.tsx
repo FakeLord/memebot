@@ -119,6 +119,12 @@ export function EnginePanel({ onClose, left }: { onClose: () => void; left: numb
           <StatusPill tone={tg.state === 'connected' ? 'on' : tg.state === 'connecting' ? 'wait' : 'off'}>{TG_LABEL[tg.state]}</StatusPill>
         </div>
         <div className="mini-row">
+          <span style={{ flex: 1 }}>X (TweetStream)</span>
+          <StatusPill tone={x.ts?.state === 'live' ? 'on' : x.ts?.state === 'connecting' || x.ts?.state === 'reconnecting' ? 'wait' : 'off'}>
+            {!x.ts?.configured ? 'Kurulmadı' : x.ts.state === 'live' ? `Canlı${x.ts.lastLatencyMs != null ? ` · ${x.ts.lastLatencyMs} ms` : ''}` : x.ts.state === 'error' ? 'Hata' : 'Bağlanıyor'}
+          </StatusPill>
+        </div>
+        <div className="mini-row">
           <span style={{ flex: 1 }}>X (XFlux)</span>
           <StatusPill tone={x.state === 'polling' ? 'on' : x.state === 'starting' ? 'wait' : 'off'}>
             {!x.configured ? 'Kurulmadı' : x.state === 'polling' ? 'Çalışıyor' : x.state === 'error' ? 'Hata' : 'Başlıyor'}

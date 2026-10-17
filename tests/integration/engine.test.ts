@@ -5,7 +5,7 @@ import { Engine } from '../../src/engine/engine'
 import { Vault } from '../../src/engine/vault'
 import { createLogger, silentLogger } from '../../src/engine/log'
 import { runCommand, runSealed } from '../../src/shared/engineClient'
-import { FakeGmgn, localSupabase, makeUser, service, tmpDir, waitFor, type LocalEnv } from './helpers'
+import { FakeGmgn, FakeTweetStream, localSupabase, makeUser, service, tmpDir, waitFor, type LocalEnv } from './helpers'
 
 // Motorun uçtan uca davranışı: yerel Supabase + sahte GMGN. Para harcanmaz, gerçek projeye dokunulmaz.
 
@@ -22,6 +22,7 @@ d('MemeBot Engine (yerel Supabase)', () => {
   // Atlanan (yerel Supabase yok) durumda da bu gövde çalışır: bağlantı beforeAll'da kurulur
   let admin: SupabaseClient
   const gmgn = new FakeGmgn()
+  const ts = new FakeTweetStream()
   let engine: Engine
   let founder: { id: string; client: SupabaseClient }
   let dev: { id: string; client: SupabaseClient }
@@ -57,7 +58,8 @@ d('MemeBot Engine (yerel Supabase)', () => {
       pollMs: 250,
       trackOrderMs: 50,
       trackerMs: 500,
-      xPoll: async () => ({ ok: true, monitors: xMonitors, quotaRemaining: 100_000 })
+      xPoll: async () => ({ ok: true, monitors: xMonitors, quotaRemaining: 100_000 }),
+      tsApi: ts
     })
     await en.start()
     return en
@@ -490,6 +492,66 @@ d('MemeBot Engine (yerel Supabase)', () => {
     expect(card.mints).toEqual([m])
     expect(card.url).toBe('https://x.com/elon/status/1900000000000000777')
     await runCommand(dev.client, dev.id, 'xflux.clear', {})
+  })
+
+  it('X (TweetStream): anahtar denenir, hesap eklenir, itilen gönderi sinyal ve kart olur; kopunca yeniden bağlanır', async () => {
+    const tsState = async () => (await dev.client.from('engine_user_state').select('x').eq('user_id', dev.id).single()).data?.x?.ts
+    // Yanlış anahtar saklanmaz
+    await expect(runSealed(dev.client, dev.id, 'tweetstream.save', { apiKey: 'yanlis-anahtar-123' })).rejects.toThrow(/reddedildi/)
+    const saved = await runSealed(dev.client, dev.id, 'tweetstream.save', { apiKey: 'ts_test_key_1234' })
+    expect(saved).toMatchObject({ ok: true, plan: 'ELITE', limit: 250 })
+    await waitFor(async () => ((await tsState())?.state === 'live' ? true : null))
+
+    // Hesap ekleme: geçersiz adlar ayıklanır, geçerliler TweetStream'e ve kaynaklara yazılır
+    await expect(runCommand(dev.client, dev.id, 'tweetstream.add', { handles: ['bu ad olmaz!!'] })).rejects.toThrow(/Geçerli/)
+    const added = await runCommand(dev.client, dev.id, 'tweetstream.add', { handles: ['@TsHesap', 'https://x.com/ikinci'] })
+    expect(added.results.map((x: { state: string }) => x.state)).toEqual(['added', 'added'])
+    expect([...ts.handles].sort()).toEqual(['ikinci', 'tshesap'])
+    const { data: rows } = await dev.client.from('sources').select('chat_id, title, is_active').eq('user_id', dev.id).like('chat_id', 'ts:%').order('chat_id')
+    expect(rows).toEqual([
+      { chat_id: 'ts:ikinci', title: '@ikinci', is_active: true },
+      { chat_id: 'ts:tshesap', title: '@tshesap', is_active: true }
+    ])
+
+    // İtilen gönderi: sinyal + kart (yoklama yok)
+    const m = mint()
+    const id = ts.push('tshesap', `yeni coin geliyor ${m}`)
+    const sig = await waitFor(async () => (await dev.client.from('signals').select('msg_id::text, mint').eq('mint', m).maybeSingle()).data, 5_000)
+    expect(String(sig.msg_id)).toBe(id)
+    const card = await waitFor(async () => (await dev.client.from('feed_items').select('*').eq('external_id', id).maybeSingle()).data)
+    expect(card).toMatchObject({ platform: 'x', mints: [m], url: `https://x.com/tshesap/status/${id}` })
+    expect(card.author).toMatchObject({ handle: 'tshesap', verified: true, followers: 1234 })
+    const st = await waitFor(async () => ((await tsState())?.events ? tsState() : null))
+    expect(st.lastLatencyMs).toBeGreaterThanOrEqual(0)
+
+    // İzlemeden çıkarılan hesabın gönderisi işlenmez
+    await dev.client.from('sources').update({ is_active: false }).eq('user_id', dev.id).eq('chat_id', 'ts:ikinci')
+    await engine.sources.reloadSources()
+    const m2 = mint()
+    const id2 = ts.push('ikinci', `gizli ${m2}`)
+    await new Promise((res) => setTimeout(res, 800))
+    expect((await dev.client.from('feed_items').select('id').eq('external_id', id2).maybeSingle()).data).toBeNull()
+
+    // TweetStream panelinden eklenen (bilmediğimiz) hesap otomatik kaynak olur
+    ts.handles.add('panelden')
+    const m3 = mint()
+    ts.push('panelden', `CA ${m3}`)
+    await waitFor(async () => (await dev.client.from('signals').select('id').eq('mint', m3).maybeSingle()).data, 5_000)
+    expect((await dev.client.from('sources').select('is_active').eq('user_id', dev.id).eq('chat_id', 'ts:panelden').single()).data).toEqual({ is_active: true })
+
+    // Kopunca yeniden bağlanır
+    const before = ts.connects
+    ts.drop()
+    await waitFor(async () => (ts.connects > before && (await tsState())?.state === 'live' ? true : null), 10_000)
+
+    // Hesap çıkarma: TweetStream'den ve kaynaklardan silinir
+    await runCommand(dev.client, dev.id, 'tweetstream.remove', { handle: '@tshesap' })
+    expect(ts.handles.has('tshesap')).toBe(false)
+    expect((await dev.client.from('sources').select('id').eq('user_id', dev.id).eq('chat_id', 'ts:tshesap').maybeSingle()).data).toBeNull()
+
+    await runCommand(dev.client, dev.id, 'tweetstream.clear', {})
+    await waitFor(async () => ((await tsState())?.state === 'no_key' ? true : null))
+    expect(ts.sockets.size).toBe(0)
   })
 
   it('akış kartı: öneri ızgarası GMGN aramasıyla dolar; kullanıcı sadece gizle/sabitle yapabilir', async () => {

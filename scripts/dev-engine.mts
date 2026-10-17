@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Engine } from '../src/engine/engine'
 import { createLogger } from '../src/engine/log'
 import { Vault } from '../src/engine/vault'
-import { FakeGmgn } from '../tests/integration/helpers'
+import { FakeGmgn, FakeTweetStream } from '../tests/integration/helpers'
 
 const url = process.env.SUPABASE_URL ?? ''
 if (!/^http:\/\/(127\.0\.0\.1|localhost)/.test(url)) throw new Error('dev-engine sadece yerel Supabase ile çalışır')
@@ -41,12 +41,23 @@ setInterval(() => {
   seq++
 }, 20_000)
 
+// Sahte TweetStream: anahtar "ts_test_key_1234"; izlenen her hesaptan 12 sn'de bir demo gönderi itilir
+const ts = new FakeTweetStream()
+let tsSeq = 0
+setInterval(() => {
+  for (const h of ts.handles) {
+    const t = TICKERS[tsSeq++ % TICKERS.length]
+    ts.push(h, `TweetStream canlı: $${t} geliyor${tsSeq % 2 ? ` CA: ${fakeMint()}` : ''}`)
+  }
+}, 12_000)
+
 const engine = new Engine({
   db: createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } }),
   vault: await Vault.open(process.env.ENGINE_DATA_DIR!, process.env.ENGINE_MASTER_KEY!),
   log: createLogger(),
   version: 'dev',
   gmgnFactory: () => gmgn,
+  tsApi: ts,
   xPoll: async () => ({
     ok: true,
     quotaRemaining: 10_000_000,
