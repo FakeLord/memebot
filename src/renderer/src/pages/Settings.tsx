@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   PanelLeftClose,
   PanelLeftOpen,
+  Bell,
   Droplet,
   Info,
   Keyboard,
@@ -30,6 +31,7 @@ import { ConnectionsSection } from './settings/Connections'
 import { AboutSection } from './settings/About'
 import { AccountSection } from './settings/Account'
 import { CallersSection } from './settings/Callers'
+import { NotificationsSection } from './settings/Notifications'
 import { SourcesPage } from './Sources'
 import { RulesPage } from './Rules'
 import { UsersPage } from './Users'
@@ -65,6 +67,7 @@ const MENU: { group: string; items: Item[] }[] = [
     group: 'Uygulama',
     items: [
       { id: 'account', label: 'Hesabım', icon: UserRound },
+      { id: 'notifications', label: 'Bildirimler', icon: Bell },
       { id: 'shortcuts', label: 'Kısayollar', icon: Keyboard },
       { id: 'users', label: 'Kullanıcılar', icon: UserCog, founder: true },
       { id: 'about', label: 'Hakkında', icon: Info }
@@ -151,6 +154,7 @@ export function SettingsPage() {
           {section === 'deploy' && <DeploySettingsSection />}
           {section === 'wallets' && <WalletsSection />}
           {section === 'account' && <AccountSection />}
+          {section === 'notifications' && <NotificationsSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
           {section === 'users' && founder && <UsersPage />}
           {section === 'about' && <AboutSection />}

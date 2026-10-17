@@ -2,6 +2,15 @@ import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
+// Giriş hatasını gerçek nedenine göre anlat: her hata "parola hatalı" değildir (ağ, deneme sınırı, onaysız e-posta…)
+function loginMessage(e: { message: string; status?: number; code?: string }): string {
+  if (e.code === 'invalid_credentials' || /invalid login credentials/i.test(e.message)) return 'E-posta ya da parola hatalı.'
+  if (e.status === 429 || e.code === 'over_request_rate_limit') return 'Çok fazla deneme yapıldı; birkaç dakika bekleyip tekrar deneyin.'
+  if (e.code === 'email_not_confirmed') return 'E-posta adresi onaylanmamış. Founder hesabı Supabase panelinden onaylamalı.'
+  if (/failed to fetch|network|load failed/i.test(e.message) || e.status === 0) return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.'
+  return `Giriş yapılamadı: ${e.message}`
+}
+
 // Kayıt ekranı yok: hesapları sadece founder oluşturur.
 export function LoginPage() {
   const { inactive, mfaRequired, signOut } = useAuth()
@@ -16,7 +25,7 @@ export function LoginPage() {
     setBusy(true)
     setError(null)
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    if (error) setError('E-posta ya da parola hatalı.')
+    if (error) setError(loginMessage(error))
     setBusy(false)
   }
 

@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 import { useAuth } from './auth'
 import { usePipeline } from './pipeline'
 import { keywordRegex, type FeedItem, type KeywordMatch } from '../../../shared/feed'
+import { announce, notifyPrefs, type NotifyPrefs } from './notify'
 import {
   DEFAULT_KEYBINDS,
   isLight,
@@ -39,6 +40,8 @@ export interface UiLayout {
   ticker?: string[]
   /** Canlı Akış yan panelleri: hangi kartlar hangi sütunda, hangi sırada */
   rails?: { left: string[]; right: string[] }
+  /** Bildirim sesleri ve masaüstü bildirimleri (Ayarlar → Bildirimler) */
+  notify?: Partial<NotifyPrefs>
 }
 
 interface PrefsCtx {
@@ -104,6 +107,8 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const [presets, setPresets] = useState<FeePreset[]>([])
   const kwRef = useRef(keywords)
   kwRef.current = keywords
+  const notifyRef = useRef(notifyPrefs(layout.notify))
+  notifyRef.current = notifyPrefs(layout.notify)
 
   // --- arayüz ayarları
   useEffect(() => {
@@ -212,9 +217,12 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!profile) return
     let notifySources = new Set<string>()
+    let mutedSources = new Set<string>()
     const loadSources = async () => {
-      const { data } = await supabase.from('sources').select('id').eq('user_id', profile.id).eq('notify', true)
-      notifySources = new Set(((data as { id: string }[]) ?? []).map((s) => s.id))
+      const { data } = await supabase.from('sources').select('id, notify, muted').eq('user_id', profile.id)
+      const rows = (data as { id: string; notify: boolean; muted: boolean }[]) ?? []
+      notifySources = new Set(rows.filter((s) => s.notify).map((s) => s.id))
+      mutedSources = new Set(rows.filter((s) => s.muted).map((s) => s.id))
     }
     loadSources()
     const t = setInterval(loadSources, 30_000)
@@ -224,15 +232,41 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
         const item = p.new as FeedItem
         const hits = kwRef.current.filter((k) => !k.muted && (k.notify || k.sound) && keywordRegex(k)?.test(item.text))
         const bySource = !!item.source_id && notifySources.has(item.source_id)
-        if (hits.some((k) => k.sound)) beep()
-        if ((bySource || hits.some((k) => k.notify)) && 'Notification' in window && Notification.permission === 'granted') {
+        const prefs = notifyRef.current
+        const kind = item.platform === 'x' ? 'x' : 'telegram'
+        const flagged = bySource || hits.some((k) => k.notify || k.sound)
+        const muted = !!item.source_id && mutedSources.has(item.source_id)
+        if (flagged || (prefs.scope === 'all' && !muted)) {
           const who = item.author?.name ?? item.author?.handle ?? (item.platform === 'x' ? 'X' : 'Telegram')
-          new Notification(`${who}${hits.length ? ` · ${hits.map((k) => k.pattern).join(', ')}` : ''}`, { body: item.text.slice(0, 180), silent: true })
+          announce(kind, prefs, `${who}${hits.length ? ` · ${hits.map((k) => k.pattern).join(', ')}` : ''}`, item.text.slice(0, 180))
         }
+        // Anahtar kelimede "ses" açıksa, platform sesi kapalı olsa bile kısa bip
+        if (hits.some((k) => k.sound) && !prefs[kind].sound) beep()
       })
       .subscribe()
     return () => {
       clearInterval(t)
+      supabase.removeChannel(ch)
+    }
+  }, [profile?.id])
+
+  // --- alım/satım bildirimi: emir "kesinleşti" olunca ses (alım: tetik, satış: silah) ve masaüstü bildirimi
+  useEffect(() => {
+    if (!profile) return
+    const told = new Set<string>()
+    const ch = supabase
+      .channel('prefs-trade-notify')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${profile.id}` }, (p) => {
+        const o = p.new as { id?: string; side?: 'buy' | 'sell'; status?: string; symbol?: string | null; mint?: string; amount_in?: string; is_dry_run?: boolean }
+        if (!o?.id || o.status !== 'confirmed' || told.has(o.id) || (o.side !== 'buy' && o.side !== 'sell')) return
+        told.add(o.id)
+        const name = o.symbol ?? (o.mint ? `${o.mint.slice(0, 4)}…${o.mint.slice(-4)}` : 'token')
+        const mode = o.is_dry_run ? ' (deneme)' : ''
+        const sol = o.side === 'buy' && o.amount_in && /^\d+$/.test(o.amount_in) ? ` · ${(Number(o.amount_in) / 1e9).toFixed(3)} SOL` : ''
+        announce(o.side, notifyRef.current, `${o.side === 'buy' ? 'Alım' : 'Satış'} gerçekleşti${mode}`, `${name}${sol}`)
+      })
+      .subscribe()
+    return () => {
       supabase.removeChannel(ch)
     }
   }, [profile?.id])

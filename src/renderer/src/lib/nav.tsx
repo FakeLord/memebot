@@ -18,6 +18,7 @@ export type Section =
   | 'users'
   | 'account'
   | 'callers'
+  | 'notifications'
   | 'about'
 
 interface NavCtx {
