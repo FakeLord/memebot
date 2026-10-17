@@ -35,6 +35,8 @@ export interface UiLayout {
   deployForm?: 'modal' | 'side'
   deployPlatform?: 'pump' | 'bonk' | 'bags'
   openAfterDeploy?: 'gmgn' | 'solscan' | 'none'
+  /** Alt çubuktaki canlı fiyatlar: gösterilen coinler (boş dizi = kapalı); tanımsızsa varsayılan 4 coin */
+  ticker?: string[]
 }
 
 interface PrefsCtx {

@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Star,
   UserCog,
+  UserRound,
   Users,
   Wallet,
   type LucideIcon
@@ -26,6 +27,7 @@ import { DeploySettingsSection } from './settings/DeploySettings'
 import { WalletsSection } from './settings/Wallets'
 import { ConnectionsSection } from './settings/Connections'
 import { AboutSection } from './settings/About'
+import { AccountSection } from './settings/Account'
 import { SourcesPage } from './Sources'
 import { RulesPage } from './Rules'
 import { UsersPage } from './Users'
@@ -59,6 +61,7 @@ const MENU: { group: string; items: Item[] }[] = [
   {
     group: 'Uygulama',
     items: [
+      { id: 'account', label: 'Hesabım', icon: UserRound },
       { id: 'shortcuts', label: 'Kısayollar', icon: Keyboard },
       { id: 'users', label: 'Kullanıcılar', icon: UserCog, founder: true },
       { id: 'about', label: 'Hakkında', icon: Info }
@@ -143,6 +146,7 @@ export function SettingsPage() {
           {section === 'connections' && <ConnectionsSection />}
           {section === 'deploy' && <DeploySettingsSection />}
           {section === 'wallets' && <WalletsSection />}
+          {section === 'account' && <AccountSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
           {section === 'users' && founder && <UsersPage />}
           {section === 'about' && <AboutSection />}

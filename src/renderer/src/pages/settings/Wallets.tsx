@@ -3,6 +3,8 @@ import { Check, Copy, ExternalLink, Eye, EyeOff, Plus, RefreshCw, Star } from 'l
 import { canTrade, useAuth } from '../../lib/auth'
 import { useEngine } from '../../lib/engine'
 import { useNav } from '../../lib/nav'
+import { useGmgnDash } from '../../lib/dashboard'
+import { WalletSummary } from '../../components/DashExtras'
 import { shortAddr, useWallets, type WalletRow } from '../../lib/wallets'
 
 // Cüzdanlar: GMGN'e bağlı SOL cüzdanları, bakiye, etiket, varsayılan (★) ve listeden gizleme.
@@ -29,6 +31,7 @@ export function WalletsSection() {
   const { rows, busy, error, refresh, setPref, makeDefault } = useWallets()
   const [showHidden, setShowHidden] = useState(false)
   const trader = canTrade(profile?.role)
+  const { dash } = useGmgnDash()
 
   if (!me?.gmgn.configured) {
     return (
@@ -48,6 +51,7 @@ export function WalletsSection() {
 
   return (
     <div className="stack">
+      <WalletSummary dash={dash} />
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <div className="row" style={{ gap: 6 }}>
           <h3>Cüzdanlar ({rows.length})</h3>

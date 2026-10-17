@@ -129,3 +129,24 @@ export function since(iso: string | null | undefined, now = Date.now()): string 
   if (s < 86400) return `${Math.floor(s / 3600)} sa önce`
   return `${Math.floor(s / 86400)} gün önce`
 }
+
+/** Profil avatarı: emoji ya da baş harf, seçilen renkte yuvarlak. */
+export function Avatar({
+  profile,
+  size = 20
+}: {
+  profile: { username?: string | null; display_name?: string | null; avatar_emoji?: string | null; avatar_color?: string | null } | null | undefined
+  size?: number
+}) {
+  const name = profile?.display_name || profile?.username || '?'
+  const color = profile?.avatar_color
+  return (
+    <span
+      className="avatar-badge"
+      style={{ width: size, height: size, fontSize: Math.round(size * (profile?.avatar_emoji ? 0.58 : 0.5)), background: color ? `color-mix(in srgb, ${color} 28%, var(--surface))` : undefined, color: color ?? undefined, borderColor: color ?? undefined }}
+      aria-hidden
+    >
+      {profile?.avatar_emoji || name.slice(0, 1).toUpperCase()}
+    </span>
+  )
+}

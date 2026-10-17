@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BadgeCheck, ClipboardPaste, Copy, Users, X as XIcon, Zap } from 'lucide-react'
 import { usePrefs } from '../../lib/prefs'
+import { COINS, DEFAULT_TICKER } from '../../lib/prices'
 import { HEX, THEMES, isLight, themeColors, type ThemeColors } from '../../../../shared/settings'
 
 // Görünüm: canlı önizleme + hazır temalar + özel palet (6 renk). Değişiklik anında uygulanır ve hesabınıza kaydedilir.
@@ -15,7 +16,9 @@ const COLOR_LABEL: Record<keyof ThemeColors, string> = {
 }
 
 export function AppearanceSection() {
-  const { theme, setTheme } = usePrefs()
+  const { theme, setTheme, layout, setLayout } = usePrefs()
+  const ticker = layout.ticker ?? DEFAULT_TICKER
+  const toggleCoin = (c: string) => setLayout({ ...layout, ticker: ticker.includes(c) ? ticker.filter((x) => x !== c) : COINS.filter((x) => x === c || ticker.includes(x)) })
   const [json, setJson] = useState<string | null>(null)
   const [mode, setMode] = useState<'dark' | 'light'>(isLight(themeColors(theme).bg) ? 'light' : 'dark')
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
@@ -101,6 +104,20 @@ export function AppearanceSection() {
           ))}
           <ThemeTile label="Özel" c={colors} on={theme.preset === 'custom'} onClick={() => setTheme({ preset: 'custom', colors })} />
         </div>
+      </div>
+
+      <div>
+        <div className="section-label">Alt çubuk fiyatları</div>
+        <div className="pills" style={{ flexWrap: 'wrap' }}>
+          {COINS.map((c) => (
+            <button key={c} className="pill" aria-selected={ticker.includes(c)} onClick={() => toggleCoin(c)}>
+              {c}
+            </button>
+          ))}
+        </div>
+        <p className="faint" style={{ fontSize: 11, marginTop: 6 }}>
+          Seçilen coinlerin canlı USD fiyatı (Binance herkese açık verisi) alt çubukta görünür. Hiçbiri seçili değilse bölüm gizlenir.
+        </p>
       </div>
 
       <div>

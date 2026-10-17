@@ -61,6 +61,18 @@ Deno.serve(async (req) => {
       await admin.from('audit_log').insert({ user_id: me.user?.id, action: 'user.delete', detail: { target: body.id } })
       return json({ ok: true })
     }
+    case 'reset-mfa': {
+      // Telefonunu kaybeden üyenin iki adımlı doğrulamasını kaldırır (kendi hesabınız için Ayarlar → Hesabım)
+      if (!body.id) return json({ error: 'invalid_input' }, 400)
+      const { data: list, error: listErr } = await admin.auth.admin.mfa.listFactors({ userId: body.id })
+      if (listErr) return json({ error: listErr.message }, 400)
+      for (const f of list?.factors ?? []) {
+        const { error } = await admin.auth.admin.mfa.deleteFactor({ userId: body.id, id: f.id })
+        if (error) return json({ error: error.message }, 400)
+      }
+      await admin.from('audit_log').insert({ user_id: me.user?.id, action: 'user.reset_mfa', detail: { target: body.id } })
+      return json({ ok: true, removed: list?.factors?.length ?? 0 })
+    }
     default:
       return json({ error: 'unknown_action' }, 400)
   }

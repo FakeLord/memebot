@@ -18,6 +18,7 @@ Bu projeye yeni başlıyorsan **önce `docs/HANDOFF.md`'yi oku** (tam devir dok�
   - 5 SOL/emir mutlak sınır.
 - Sırlar arayüzden motora sadece mühürlü zarfla (`runSealed`) gider; motor kasasında saklanır.
 - Kapsam dışı: bundle/sniper, vamp, multi deploy, tarayıcı eklentisi.
+- Hesap güvenliği: 2FA (Supabase TOTP) açıkken `my_role()` yalnız aal2 oturuma rol verir; böylece parola tek başına veriye yetmez. Üye 2FA sıfırlama `manage-users` edge function'ının `reset-mfa` eylemidir (yeniden `npx supabase functions deploy manage-users` gerekir). Yayında Supabase → Authentication → MFA'da TOTP açık olmalı.
 - Supabase migration'larını kullanıcı SQL Editor'dan kendisi çalıştırır. Yeni migration → kullanıcıya söyle → "çalıştırdım" dedikten sonra yayın.
 - Push ve release kullanıcı onayıyla yapılır. Akış: `npm version 0.1.X --no-git-tag-version` → commit → `git tag -a v0.1.X` → push main + etiket → Actions → release'i doğrula (tek kayıt, 3 dosya).
 - Commit mesajları Türkçe, sonunda `Co-Authored-By` satırı.

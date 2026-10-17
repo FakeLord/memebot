@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { useOrders, type PositionRow } from '../lib/orders'
 import { usePipeline } from '../lib/pipeline'
+import { useShareCard } from '../components/ShareCard'
+import { Share2 } from 'lucide-react'
 
 interface Position extends PositionRow {
   entry_price: number | null
@@ -51,6 +53,8 @@ export function PositionsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const trader = canTrade(profile?.role)
+  const [tab, setTab] = useState<'holding' | 'history'>('holding')
+  const [share, shareModal] = useShareCard()
 
   useEffect(() => {
     if (!profile) return
@@ -118,6 +122,15 @@ export function PositionsPage() {
 
   return (
     <div className="stack">
+      {shareModal}
+      <div className="pills" aria-label="Pozisyon görünümü">
+        <button className="pill" aria-selected={tab === 'holding'} onClick={() => setTab('holding')}>
+          Holding ({open.length})
+        </button>
+        <button className="pill" aria-selected={tab === 'history'} onClick={() => setTab('history')}>
+          History ({closed.length})
+        </button>
+      </div>
       {msg && <div className={`notice ${msg.kind}`}>{msg.text}</div>}
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="muted">
@@ -130,6 +143,7 @@ export function PositionsPage() {
         )}
       </div>
 
+      {tab === 'holding' && (
       <div className="card" style={{ padding: 0 }}>
         <div className="row" style={{ justifyContent: 'space-between', padding: '14px 16px 0' }}>
           <h2 style={{ margin: 0 }}>Açık ({open.length})</h2>
@@ -217,8 +231,10 @@ export function PositionsPage() {
           </table>
         )}
       </div>
+      )}
 
-      {closed.length > 0 && (
+      {tab === 'history' && closed.length === 0 && <div className="empty">Henüz kapanan işlem yok.</div>}
+      {tab === 'history' && closed.length > 0 && (
         <div className="card" style={{ padding: 0 }}>
           <h2 style={{ padding: '14px 16px 0' }}>Kapanan</h2>
           <table>
@@ -230,6 +246,7 @@ export function PositionsPage() {
                 <th>Sonuç</th>
                 <th>Neden</th>
                 <th>Kapanış</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -248,6 +265,11 @@ export function PositionsPage() {
                     </td>
                     <td className="muted">{p.close_reason ? (CLOSE_REASON[p.close_reason] ?? p.close_reason) : '—'}</td>
                     <td className="muted">{p.closed_at ? new Date(p.closed_at).toLocaleString('tr-TR') : ''}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="icon-btn sm" title="Paylaşım kartı" onClick={() => share(p)}>
+                        <Share2 size={12} />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}

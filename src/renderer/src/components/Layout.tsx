@@ -23,7 +23,8 @@ import {
   Users,
   type LucideIcon
 } from 'lucide-react'
-import { ROLE_LABEL, canTrade, useAuth } from '../lib/auth'
+import { ROLE_LABEL, canTrade, shownName, useAuth } from '../lib/auth'
+import { Avatar } from './ui'
 import { supabase } from '../lib/supabase'
 import { useKillSwitch } from '../lib/killswitch'
 import { usePipeline } from '../lib/pipeline'
@@ -35,6 +36,8 @@ import { useDeploy } from './DeployPanel'
 import { FeesPopover } from './FeesPopover'
 import { ConnPanel, EnginePanel, HistoryPanel, ModePanel, ThemePanel } from './StatusPanels'
 import { MiniRules } from './MiniRules'
+import { cap, useBadges } from '../lib/badges'
+import { DEFAULT_TICKER, fmtPrice, usePrices } from '../lib/prices'
 import { APP_VERSION, desktop, isDesktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
 
@@ -232,10 +235,10 @@ function TopBar() {
             {killSwitch ? 'Devam' : 'Durdur'}
           </button>
         )}
-        <span className="tb" style={{ cursor: 'default' }} title={profile ? ROLE_LABEL[profile.role] : undefined}>
-          <span className="avatar sm avatar-text">{(profile?.username ?? '?').slice(0, 1).toUpperCase()}</span>
-          <span className="tb-name">{profile?.username}</span>
-        </span>
+        <button className={`tb ${inSettings && section === 'account' ? 'on' : ''}`} title={profile ? `${ROLE_LABEL[profile.role]}${profile.status_text ? ` · ${profile.status_text}` : ''} — Hesabım` : undefined} onClick={() => go('settings', 'account')}>
+          <Avatar profile={profile} />
+          <span className="tb-name">{shownName(profile)}</span>
+        </button>
         <button className="tb icon" title="Çıkış" onClick={signOut}>
           <LogOut size={14} />
         </button>
@@ -249,10 +252,35 @@ function TopBar() {
 // Başka bir yerden açmak için: window.dispatchEvent(new CustomEvent('memebot:panel', { detail: 'fees' }))
 type PanelName = 'conn' | 'engine' | 'history' | 'fees' | 'rules' | 'mode' | 'theme'
 
+// Alt çubuktaki canlı piyasa fiyatları (Ayarlar → Görünüm'den seçilir)
+function PriceTicker() {
+  const { layout } = usePrefs()
+  const q = usePrices()
+  const coins = layout.ticker ?? DEFAULT_TICKER
+  if (!coins.length) return null
+  return (
+    <div className="sb-ticker" aria-label="Canlı fiyatlar">
+      {coins.map((c) => {
+        const x = q[c as keyof typeof q]
+        return (
+          <span key={`${c}-${x?.price ?? 0}`} className={`sb-coin ${x?.dir ?? ''}`} title={x ? `${c} · 24s ${x.change >= 0 ? '+' : ''}${(x.change * 100).toFixed(2)}%` : `${c} · bağlanılıyor`}>
+            <b>{c}</b>
+            <span className="mono">{x ? fmtPrice(x.price) : '…'}</span>
+            {x && <span className={x.change >= 0 ? 'pos' : 'neg'}>{`${x.change >= 0 ? '+' : ''}${(x.change * 100).toFixed(1)}%`}</span>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function StatusBar() {
   const { online, status } = useEngine()
   const { rule } = usePipeline()
   const { activePreset } = usePrefs()
+  const { page, go } = useNav()
+  const { pendingCount } = usePipeline()
+  const { unseen, openCount } = useBadges(page === 'feed')
   const [connected, setConnected] = useState(true)
   // Açık panolar → açıldığı düğmenin ekrandaki x konumu (ilk yerleşim için)
   const [open, setOpen] = useState<Partial<Record<PanelName, number>>>({})
@@ -307,6 +335,15 @@ function StatusBar() {
         <CircleDollarSign size={12} />
         Ücret <span className="sb-pill">P{activePreset}</span>
       </button>
+      <button className={`sb-item ${page === 'feed' ? 'open' : ''}`} title="Canlı akış: görülmemiş sinyal" onClick={() => go('feed')}>
+        Sinyal {unseen > 0 && <span className="sb-badge">{cap(unseen)}</span>}
+      </button>
+      <button className={`sb-item ${page === 'approvals' ? 'open' : ''}`} title="Onay bekleyen adaylar" onClick={() => go('approvals')}>
+        Onay {pendingCount > 0 && <span className="sb-badge warn">{cap(pendingCount)}</span>}
+      </button>
+      <button className={`sb-item ${page === 'positions' ? 'open' : ''}`} title="Açık pozisyonlar" onClick={() => go('positions')}>
+        Açık {openCount > 0 && <span className="sb-badge">{cap(openCount)}</span>}
+      </button>
       <button {...btn('rules')} title="Kurallar panosu">
         <SlidersHorizontal size={12} />
         Kurallar
@@ -323,6 +360,8 @@ function StatusBar() {
       {'rules' in open && <MiniRules onClose={closer('rules')} anchorX={at('rules')} />}
       {'mode' in open && <ModePanel onClose={closer('mode')} left={at('mode')} />}
       {'theme' in open && <ThemePanel onClose={closer('theme')} left={at('theme')} />}
+
+      <PriceTicker />
 
       <div className="sb-right">
         {online && (

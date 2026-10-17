@@ -724,3 +724,43 @@ button.gm-cell { cursor: default; }
 .wstat-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
 .wstat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 5px; }
 .wstat .kpi { background: var(--surface); }
+
+/* ---- profil avatarı ---- */
+.avatar-badge { display: inline-grid; place-items: center; flex: none; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-weight: 700; line-height: 1; user-select: none; }
+.avatar-pick { display: flex; flex-wrap: wrap; gap: 4px; }
+.avatar-pick button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font-size: 16px; line-height: 1; }
+.avatar-pick button[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.swatch-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+.swatch[aria-pressed='true'] { border-color: var(--text); }
+.mfa-qr { width: 168px; height: 168px; border-radius: 8px; background: #fff; padding: 6px; }
+.mfa-steps { display: grid; gap: 10px; }
+
+/* ---- alt çubuk fiyatları ---- */
+.sb-ticker { display: flex; align-items: center; gap: 12px; margin-left: 14px; min-width: 0; overflow: hidden; }
+.sb-coin { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 11px; }
+.sb-coin b { color: var(--text); font-weight: 600; }
+.sb-coin.up .mono { animation: tick-up 0.7s ease-out; }
+.sb-coin.down .mono { animation: tick-down 0.7s ease-out; }
+@keyframes tick-up { from { color: var(--pos, #3ecf8e); } }
+@keyframes tick-down { from { color: var(--neg, #f0616d); } }
+@media (max-width: 900px) { .sb-ticker { display: none; } }
+
+/* ---- PnL takvimi ---- */
+.pcal { display: grid; gap: 8px; }
+.pcal-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.pcal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.pcal-dow { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: var(--faint); text-transform: uppercase; }
+.pcal-day { all: unset; box-sizing: border-box; display: grid; align-content: space-between; min-height: 44px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); cursor: default; }
+.pcal-day:not(:disabled) { cursor: pointer; }
+.pcal-day:not(:disabled):hover { border-color: var(--muted); }
+.pcal-day.today { outline: 1px solid var(--accent); outline-offset: -1px; }
+.pcal-day.sel { border-color: var(--text); }
+.pcal-n { font-size: 10px; color: var(--faint); }
+.pcal-v { font: 600 11px var(--mono); text-align: right; }
+.pcal-list { display: grid; gap: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.pcal-trade { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+/* ---- alt çubuk rozetleri ---- */
+.sb-badge { display: inline-grid; place-items: center; min-width: 16px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--accent-text); font: 700 9.5px var(--mono); }
+.sb-badge.warn { background: var(--warn); color: #111; }

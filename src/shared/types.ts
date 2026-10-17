@@ -8,6 +8,10 @@ export interface Profile {
   role: Role
   is_active: boolean
   created_at: string
+  display_name?: string | null
+  avatar_emoji?: string | null
+  avatar_color?: string | null
+  status_text?: string | null
 }
 
 export type GmgnResult<T = unknown> =

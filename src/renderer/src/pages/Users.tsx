@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Search, Trash2, UserPlus, Users as UsersIcon, X } from 'lucide-react'
+import { KeyRound, Search, Trash2, UserPlus, Users as UsersIcon, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { ROLE_LABEL, useAuth } from '../lib/auth'
-import { Section, SettingRow, Stat, StatusPill } from '../components/ui'
+import { Avatar, Section, SettingRow, Stat, StatusPill } from '../components/ui'
 import type { Profile, Role } from '../../../shared/types'
 
 // Kullanıcılar (sadece founder): ekip üyeleri, rolleri, aktiflik; yeni hesap "manage-users" fonksiyonuyla açılır.
@@ -60,6 +60,13 @@ export function UsersPage() {
     const { data, error } = await supabase.functions.invoke('manage-users', { body: { action: 'delete', id: u.id } })
     if (error || data?.error) setMsg({ kind: 'error', text: `Silinemedi: ${data?.error ?? error?.message}` })
     load()
+  }
+
+  const resetMfa = async (u: Profile) => {
+    if (!confirm(`${u.username} için iki adımlı doğrulama kaldırılsın mı? Kullanıcı yalnız parolayla girer, isterse yeniden kurar.`)) return
+    const { data, error } = await supabase.functions.invoke('manage-users', { body: { action: 'reset-mfa', id: u.id } })
+    if (error || data?.error) setMsg({ kind: 'error', text: `Sıfırlanamadı: ${data?.error ?? error?.message}` })
+    else setMsg({ kind: 'ok', text: data.removed ? `${u.username} için 2FA kaldırıldı.` : `${u.username} için kayıtlı 2FA yoktu.` })
   }
 
   const filtered = useMemo(() => users.filter((u) => u.username.toLocaleLowerCase('tr').includes(q.toLocaleLowerCase('tr'))), [users, q])
@@ -151,14 +158,13 @@ export function UsersPage() {
             const self = u.id === me?.id
             return (
               <div key={u.id} className={`list-row ${u.is_active ? '' : 'dim'}`}>
-                <span className="avatar sm avatar-text" style={{ width: 28, height: 28, fontSize: 12 }}>
-                  {u.username.slice(0, 1).toUpperCase()}
-                </span>
+                <Avatar profile={u} size={28} />
                 <div className="list-row-main">
                   <span className="list-row-title">
-                    {u.username} {self && <span className="faint" style={{ fontWeight: 400 }}>(siz)</span>}
+                    {u.display_name || u.username} {u.display_name && <span className="faint" style={{ fontWeight: 400 }}>@{u.username}</span>} {self && <span className="faint" style={{ fontWeight: 400 }}>(siz)</span>}
                   </span>
                   <span className="list-row-sub">
+                    {u.status_text ? `${u.status_text} · ` : ''}
                     {ROLE_DESC[u.role]} · {new Date(u.created_at).toLocaleDateString('tr-TR')}
                   </span>
                 </div>
@@ -177,6 +183,9 @@ export function UsersPage() {
                   style={{ padding: 0, background: 'none' }}
                 >
                   <StatusPill tone={u.is_active ? 'on' : 'off'}>{u.is_active ? 'Aktif' : 'Pasif'}</StatusPill>
+                </button>
+                <button className="icon-btn" title="İki adımlı doğrulamayı sıfırla (telefonunu kaybeden üye için)" disabled={self} onClick={() => resetMfa(u)}>
+                  <KeyRound size={13} />
                 </button>
                 <button className="icon-btn danger" title="Kalıcı olarak sil" disabled={self} onClick={() => remove(u)}>
                   <Trash2 size={13} />

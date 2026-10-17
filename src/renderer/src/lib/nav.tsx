@@ -16,6 +16,7 @@ export type Section =
   | 'wallets'
   | 'shortcuts'
   | 'users'
+  | 'account'
   | 'about'
 
 interface NavCtx {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, BarChart3, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
+import { Activity, BarChart3, CalendarDays, Flame, LayoutDashboard, Radio, RefreshCw, Rocket, Search, ShieldCheck, SlidersHorizontal, Trophy, Wallet, Zap } from 'lucide-react'
 import { useDashboardData, useDashMode, useGmgnDash } from '../lib/dashboard'
 import { useNav } from '../lib/nav'
 import { canTrade, useAuth } from '../lib/auth'
@@ -8,6 +8,8 @@ import { Card, Empty, FunnelBars, Kpi, ModeSwitch, OpenPositions, PendingList, P
 import { AlertList, HealthList, useHealth } from '../components/DashHealth'
 import { useNow } from '../components/DashRails'
 import { useDeploy } from '../components/DeployPanel'
+import { PnlCalendar } from '../components/DashExtras'
+import { useShareCard } from '../components/ShareCard'
 
 // Dashboard: tüm veriler tek ekranda. Ana sayfanın yan panelleri bunun özetidir.
 // Pozisyon/emir/sinyal verisi kendi veritabanımızdan, trend ve cüzdan istatistikleri GMGN'den (motor toplar) gelir.
@@ -55,6 +57,7 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
   const { go } = useNav()
   const { open: openDeploy } = useDeploy()
   const data = useDashboardData()
+  const [share, shareModal] = useShareCard()
   const [mode, setMode] = useDashMode()
   const { dash, configured } = useGmgnDash()
   const [days, setDays] = useState<(typeof RANGES)[number]>(30)
@@ -72,6 +75,7 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
 
   return (
     <div className="stack" style={{ gap: 16 }}>
+      {shareModal}
       <div className="dash-toolbar">
         <ModeSwitch mode={mode} onChange={setMode} />
         <div className="pills" aria-label="Dönem">
@@ -114,6 +118,10 @@ export function DashboardPage({ onCheck }: { onCheck: (mint: string) => void }) 
               <FunnelBars f={f} />
             </Card>
           </div>
+
+          <Card title="PnL takvimi" icon={<CalendarDays size={13} />}>
+            <PnlCalendar positions={data.positions} mode={mode} onShare={share} />
+          </Card>
 
           <div className="dgrid dgrid-2">
             <Card title={`Açık pozisyonlar (${summary.openCount})`} icon={<Wallet size={13} />} flush>
