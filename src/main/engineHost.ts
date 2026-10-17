@@ -16,6 +16,31 @@ interface HostConfig {
 
 const MAX_LOG = 300
 
+/** Anahtar bu Supabase projesinin service_role anahtarı mı? JWT ise rol ve proje kodu okunur; sorun varsa açıklaması döner. */
+export function keyProblem(key: string, supabaseUrl: string | undefined): string | null {
+  const m = /^eyJ[\w-]+\.([\w-]+)\.[\w-]+$/.exec(key)
+  if (!m) return null // sb_secret_… : içeriği okunamaz, doğruluğunu Supabase söyler
+  let claims: { role?: string; ref?: string }
+  try {
+    claims = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf-8'))
+  } catch {
+    return 'Anahtar okunamadı; eksik ya da bozuk yapıştırılmış olabilir'
+  }
+  if (claims.role && claims.role !== 'service_role') {
+    return `Bu bir "${claims.role}" anahtarı; motor için "service_role" gerekir (Supabase → Project Settings → API Keys → service_role / Secret key)`
+  }
+  let host = ''
+  try {
+    host = new URL(supabaseUrl ?? '').hostname
+  } catch {
+    /* adres yok */
+  }
+  if (claims.ref && host && !host.startsWith(`${claims.ref}.`)) {
+    return `Bu anahtar başka bir Supabase projesine ait (${claims.ref}); uygulama ${host.split('.')[0]} projesine bağlı. O projenin service_role anahtarını girin`
+  }
+  return null
+}
+
 export class EngineHost {
   private proc: UtilityProcess | null = null
   private logs: string[] = []
@@ -69,6 +94,8 @@ export class EngineHost {
       const k = patch.serviceRoleKey.trim()
       // service_role anahtarı bir JWT ya da yeni biçimde "sb_secret_" ile başlar
       if (k && !/^(eyJ[\w-]+\.[\w-]+\.[\w-]+|sb_secret_[\w-]+)$/.test(k)) throw new Error('Bu bir service_role anahtarına benzemiyor')
+      const why = k ? keyProblem(k, this.supabaseUrl) : null
+      if (why) throw new Error(why)
       cfg.serviceRoleKey = k || undefined
     }
     if (patch.enabled !== undefined) cfg.enabled = patch.enabled
@@ -98,7 +125,22 @@ export class EngineHost {
       }
     })
     this.proc = proc
-    const onData = (b: Buffer) => b.toString('utf-8').split('\n').filter(Boolean).forEach((l) => this.push(l))
+    const why = keyProblem(cfg.serviceRoleKey, this.supabaseUrl)
+    if (why) this.push(`UYARI: ${why}`)
+    let hinted = false
+    const onData = (b: Buffer) =>
+      b
+        .toString('utf-8')
+        .split('\n')
+        .filter(Boolean)
+        .forEach((l) => {
+          this.push(l)
+          // Supabase anahtarı reddettiğinde ne yapılacağını bir kez yaz
+          if (!hinted && /Invalid API key/i.test(l)) {
+            hinted = true
+            this.push("İPUCU: Supabase bu anahtarı kabul etmiyor. Anahtar bu projeye ait değil, yenilenmiş ya da service_role/secret türünde değil. Supabase → Project Settings → API Keys'ten güncel anahtarı alıp yeniden kaydedin.")
+          }
+        })
     proc.stdout?.on('data', onData)
     proc.stderr?.on('data', onData)
     proc.on('spawn', () => {
