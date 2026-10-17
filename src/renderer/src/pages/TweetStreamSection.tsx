@@ -146,6 +146,16 @@ export function TweetStreamSection() {
             </select>
           </SettingRow>
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+            {/* Düğme kapalıysa nedeni yazılsın */}
+            {!busy && (!online || key.trim().length < 8) && (
+              <span className={!online ? 'neg' : 'faint'} style={{ fontSize: 12, marginRight: 'auto' }}>
+                {!online
+                  ? 'Motor çalışmıyor: anahtar motorun kasasına kaydedilir, bu yüzden motor açık olmalı (alt çubuk → Motor).'
+                  : key.trim()
+                    ? 'Anahtar çok kısa görünüyor.'
+                    : 'Anahtarı girin.'}
+              </span>
+            )}
             <button className="btn btn-sm btn-primary" disabled={busy || !online || key.trim().length < 8}>
               <Zap size={13} /> {busy ? 'Deneniyor…' : 'Doğrula ve kaydet'}
             </button>

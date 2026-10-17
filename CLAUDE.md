@@ -6,7 +6,8 @@ Bu projeye yeni başlıyorsan **önce `docs/HANDOFF.md`'yi oku** (tam devir dok�
 
 - Kullanıcıyla **Türkçe** konuş; UI metinleri ve kod yorumları Türkçe.
 - **Tasarım (J7 tarzı):** kompakt koyu tema; ortalanmış üst menü, alt durum çubuğu (Ücret popover'ı orada), ikonlu sol menülü Ayarlar. Vurgu rengi (varsayılan indigo) sadece seçili öğe/birincil buton için; anlam renkleri sabit (yeşil kâr/geçti, kırmızı zarar/red, sarı uyarı). İkonlar `lucide-react`.
-- Repo **public**: sır yok, commit'lenmez, loglanmaz, sohbette istenmez. Sırlar `safeStorage` ile yerelde (v2'de motor sunucusunda şifreli).
+- Repo **gizli** (17.10.2026'dan beri; önceden public'ti, eski kopyalar dolaşmış olabilir): yine de sır yok, commit'lenmez, loglanmaz, sohbette istenmez.
+- Güncellemeler **elle** dağıtılır: repo gizli olduğu için kurulu uygulamanın otomatik güncellemesi GitHub Releases'e ulaşamaz. Yeni sürüm = `npm run dist` → `release/<sürüm>/` zip'i ekibe gönderilir. Sırlar `safeStorage` ile yerelde (v2'de motor sunucusunda şifreli).
 - Mimari: iş yapan her şey **motorda** (`src/engine`, Electron'a bağımlı değil). Arayüz sadece Supabase'e niyet/komut yazar.
 - Para güvenliği sözleşmeleri:
   - emirlerde `idempotency_key`,

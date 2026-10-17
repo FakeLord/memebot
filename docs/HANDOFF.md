@@ -4,7 +4,7 @@ Son güncelleme: 16 Ekim 2026 · Yayınlanan son sürüm: **v0.1.5** · Kodda ha
 Bu dosya, projeye sıfırdan katılan bir Claude oturumunun her şeyi anlayıp kaldığı yerden devam edebilmesi için yazıldı.
 Sırayla oku: bu dosya → `docs/V2-PLAN.md` (fazlar, kararlar) → `docs/KURULUM-V2.md` (kullanıcının adımları) → `docs/V2-TASLAK.md` (J7 ekran analizi).
 
-> ⚠️ Repo **public**. Hiçbir sır yok, olmamalı. Anahtarları commit'leme, loglama, sohbete isteme.
+> ⚠️ Repo **gizli** (17.10.2026'dan beri, önceden public'ti). Yine de hiçbir sır yok, olmamalı. Güncellemeler elle dağıtılır (otomatik güncelleme GitHub'a ulaşamaz). Anahtarları commit'leme, loglama, sohbete isteme.
 
 ---
 
