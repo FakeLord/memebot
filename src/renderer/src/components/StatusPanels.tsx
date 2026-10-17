@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowRight, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ArrowRight } from 'lucide-react'
+import { FloatingPanel } from './FloatingPanel'
 import { canTrade, ROLE_LABEL, useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useEngine } from '../lib/engine'
@@ -10,8 +11,8 @@ import { THEMES, themeColors } from '../../../shared/settings'
 import type { TelegramStatus } from '../../../shared/types'
 import { since, StatusPill, Toggle } from './ui'
 
-// Alt çubuktaki kısayolların mini panelleri (Ücret popover'ı ile aynı kalıp).
-// Panel, tıklanan düğmenin üstünde açılır; dışarı tıklayınca ya da Esc ile kapanır.
+// Alt çubuktaki kısayolların mini panelleri. Hepsi taşınabilir ve boyutlandırılabilir (FloatingPanel);
+// tıklanan düğmenin üstünde açılır, aynı düğme ya da X ile kapanır. Birden fazlası aynı anda açık kalabilir.
 
 export function Popover({
   title,
@@ -26,30 +27,10 @@ export function Popover({
   width?: number
   children: ReactNode
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      const t = e.target as HTMLElement
-      if (ref.current && !ref.current.contains(t) && !t.closest('.statusbar')) onClose()
-    }
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    document.addEventListener('mousedown', down)
-    document.addEventListener('keydown', key)
-    return () => {
-      document.removeEventListener('mousedown', down)
-      document.removeEventListener('keydown', key)
-    }
-  }, [onClose])
   return (
-    <div className="popover" ref={ref} role="dialog" aria-label={title} style={{ left, width }}>
-      <div className="popover-head">
-        <h3>{title}</h3>
-        <button className="x-btn" title="Kapat" onClick={onClose}>
-          <X size={14} />
-        </button>
-      </div>
+    <FloatingPanel id={title} title={title} anchorX={left} width={width} onClose={onClose}>
       {children}
-    </div>
+    </FloatingPanel>
   )
 }
 
@@ -213,7 +194,7 @@ export function HistoryPanel({ onClose, left }: { onClose: () => void; left: num
               </span>
               <span style={{ flex: 1, minWidth: 0 }} className="ellipsis">
                 <b>{o.symbol ?? `${o.mint.slice(0, 4)}…`}</b>{' '}
-                <span className="mono faint">{o.side === 'buy' ? `${o.amount_in} SOL` : `%${o.sell_percent ?? 100}`}</span>
+                <span className="mono faint">{o.side === 'buy' ? `${+(Number(o.amount_in) / 1e9).toFixed(4)} SOL` : `%${o.sell_percent ?? 100}`}</span>
                 {o.is_dry_run && <span className="faint"> · deneme</span>}
               </span>
               <StatusPill tone={ORDER_TONE[o.status] ?? 'wait'}>{ORDER_LABEL[o.status] ?? o.status}</StatusPill>

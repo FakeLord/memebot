@@ -233,19 +233,18 @@ function TopBar() {
   )
 }
 
-// Alt durum çubuğu: her kısayol kendi mini panelini açar (bağlantı, motor, geçmiş, ücret, işlem modu, görünüm).
+// Alt durum çubuğu: her kısayol kendi mini panosunu açar (bağlantı, motor, geçmiş, ücret, kurallar, işlem modu, görünüm).
+// Panolar taşınır ve boyutlanır; birden fazlası aynı anda açık kalabilir. Aynı düğme panoyu kapatır.
 // Başka bir yerden açmak için: window.dispatchEvent(new CustomEvent('memebot:panel', { detail: 'fees' }))
-type PanelName = 'conn' | 'engine' | 'history' | 'fees' | 'mode' | 'theme'
-
-const PANEL_WIDTH: Record<PanelName, number> = { conn: 300, engine: 300, history: 340, fees: 300, mode: 300, theme: 320 }
+type PanelName = 'conn' | 'engine' | 'history' | 'fees' | 'rules' | 'mode' | 'theme'
 
 function StatusBar() {
   const { online, status } = useEngine()
   const { rule } = usePipeline()
   const { activePreset } = usePrefs()
   const [connected, setConnected] = useState(true)
-  const [panel, setPanel] = useState<{ name: PanelName; left: number } | null>(null)
-  const [rulesOpen, setRulesOpen] = useState(false)
+  // Açık panolar → açıldığı düğmenin ekrandaki x konumu (ilk yerleşim için)
+  const [open, setOpen] = useState<Partial<Record<PanelName, number>>>({})
   const barRef = useRef<HTMLElement>(null)
 
   // Kendi kanalımızın durumu (kopunca istemci kendisi yeniden bağlanır)
@@ -256,31 +255,28 @@ function StatusBar() {
     }
   }, [])
 
-  const openAt = useCallback((name: PanelName, el: HTMLElement | null) => {
-    const bar = barRef.current
-    if (!bar || !el) return
-    const w = PANEL_WIDTH[name]
-    const left = el.getBoundingClientRect().left - bar.getBoundingClientRect().left
-    setPanel({ name, left: Math.max(8, Math.min(left, bar.clientWidth - w - 8)) })
+  const show = useCallback((name: PanelName, el: Element | null) => {
+    const x = el ? el.getBoundingClientRect().left : 8
+    setOpen((o) => (name in o ? o : { ...o, [name]: x }))
   }, [])
+  const hide = useCallback((name: PanelName) => setOpen(({ [name]: _, ...rest }) => rest), [])
 
   useEffect(() => {
     const on = (e: Event) => {
-      const name = (e as CustomEvent<PanelName | 'rules'>).detail
-      if (name === 'rules') return setRulesOpen(true)
-      openAt(name, barRef.current?.querySelector<HTMLElement>(`[data-panel="${name}"]`) ?? null)
+      const name = (e as CustomEvent<PanelName>).detail
+      show(name, barRef.current?.querySelector(`[data-panel="${name}"]`) ?? null)
     }
     window.addEventListener('memebot:panel', on)
     return () => window.removeEventListener('memebot:panel', on)
-  }, [openAt])
+  }, [show])
 
-  const close = useCallback(() => setPanel(null), [])
   const btn = (name: PanelName) => ({
     'data-panel': name,
-    className: `sb-item ${panel?.name === name ? 'open' : ''}`,
-    onClick: (e: React.MouseEvent<HTMLButtonElement>) => (panel?.name === name ? close() : openAt(name, e.currentTarget))
+    className: `sb-item ${name in open ? 'open' : ''}`,
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => (name in open ? hide(name) : show(name, e.currentTarget))
   })
-  const left = panel?.left ?? 8
+  const at = (name: PanelName) => open[name] ?? 8
+  const closer = (name: PanelName) => () => hide(name)
 
   return (
     <footer className="statusbar" ref={barRef}>
@@ -300,7 +296,7 @@ function StatusBar() {
         <CircleDollarSign size={12} />
         Ücret <span className="sb-pill">P{activePreset}</span>
       </button>
-      <button className={`sb-item ${rulesOpen ? 'open' : ''}`} onClick={() => setRulesOpen((v) => !v)} title="Taşınabilir kurallar panosu">
+      <button {...btn('rules')} title="Kurallar panosu">
         <SlidersHorizontal size={12} />
         Kurallar
       </button>
@@ -309,13 +305,13 @@ function StatusBar() {
         <span className="faint">· {rule.mode === 'auto' ? 'otomatik' : rule.mode === 'manual' ? 'manuel' : 'izle'}</span>
       </button>
 
-      {panel?.name === 'conn' && <ConnPanel connected={connected} onClose={close} left={left} />}
-      {panel?.name === 'engine' && <EnginePanel onClose={close} left={left} />}
-      {panel?.name === 'history' && <HistoryPanel onClose={close} left={left} />}
-      {panel?.name === 'fees' && <FeesPopover onClose={close} left={left} />}
-      {panel?.name === 'mode' && <ModePanel onClose={close} left={left} />}
-      {panel?.name === 'theme' && <ThemePanel onClose={close} left={left} />}
-      {rulesOpen && <MiniRules onClose={() => setRulesOpen(false)} />}
+      {'conn' in open && <ConnPanel connected={connected} onClose={closer('conn')} left={at('conn')} />}
+      {'engine' in open && <EnginePanel onClose={closer('engine')} left={at('engine')} />}
+      {'history' in open && <HistoryPanel onClose={closer('history')} left={at('history')} />}
+      {'fees' in open && <FeesPopover onClose={closer('fees')} left={at('fees')} />}
+      {'rules' in open && <MiniRules onClose={closer('rules')} anchorX={at('rules')} />}
+      {'mode' in open && <ModePanel onClose={closer('mode')} left={at('mode')} />}
+      {'theme' in open && <ThemePanel onClose={closer('theme')} left={at('theme')} />}
 
       <div className="sb-right">
         {online && (

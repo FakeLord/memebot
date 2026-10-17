@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Plus, Settings as SettingsIcon, Wallet, X } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Settings as SettingsIcon, Wallet } from 'lucide-react'
+import { FloatingPanel } from './FloatingPanel'
 import { usePrefs } from '../lib/prefs'
 import { useNav } from '../lib/nav'
 import { useWallets, shortAddr } from '../lib/wallets'
@@ -10,26 +11,10 @@ import { Expander, FeeSummary, QuickGrid, SafetyCompact, TpSlList } from './Rule
 import type { PresetSlot } from '../../../shared/settings'
 import type { TradeMode } from '../../../shared/rules'
 
-// Alt çubuktaki "Kurallar": GMGN'in mini emir panosu düzeninde, sürüklenebilir kural panosu.
-// Alım / Satış / Otomatik sekmeleri; değişiklikler büyük düğmeyle kaydedilir. Konum tarayıcıda hatırlanır.
+// Alt çubuktaki "Kurallar": GMGN'in mini emir panosu düzeninde kural panosu (taşınır, boyutlanır: FloatingPanel).
+// Alım / Satış / Otomatik sekmeleri; değişiklikler büyük düğmeyle kaydedilir.
 
 type Tab = 'buy' | 'sell' | 'auto'
-const POS_KEY = 'memebot.rulesPanel'
-const W = 320
-
-function loadPos(): { x: number; y: number } | null {
-  try {
-    const p = JSON.parse(localStorage.getItem(POS_KEY) ?? 'null') as { x: number; y: number } | null
-    return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null
-  } catch {
-    return null
-  }
-}
-
-const clamp = (p: { x: number; y: number }, h: number) => ({
-  x: Math.max(8, Math.min(p.x, window.innerWidth - W - 8)),
-  y: Math.max(8, Math.min(p.y, window.innerHeight - Math.min(h, 120) - 8))
-})
 
 const MODES: { value: TradeMode; label: string }[] = [
   { value: 'watch', label: 'İzle' },
@@ -37,7 +22,7 @@ const MODES: { value: TradeMode; label: string }[] = [
   { value: 'auto', label: 'Otomatik' }
 ]
 
-export function MiniRules({ onClose }: { onClose: () => void }) {
+export function MiniRules({ onClose, anchorX }: { onClose: () => void; anchorX?: number }) {
   const d = useRuleDraft()
   const { activePreset, setActivePreset } = usePrefs()
   const { go } = useNav()
@@ -45,96 +30,49 @@ export function MiniRules({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('buy')
   const [openTp, setOpenTp] = useState(false)
   const [openSafety, setOpenSafety] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState(() => clamp(loadPos() ?? { x: 12, y: window.innerHeight - 560 }, 520))
   const l = d.draft.limits
   const wallet = wallets.rows.find((w) => w.isDefault)
-
-  // Sürükleme: başlıktan tutulur, ekran dışına taşmaz
-  const startDrag = useCallback(
-    (e: React.PointerEvent) => {
-      if ((e.target as HTMLElement).closest('button, input, select')) return
-      const sx = e.clientX - pos.x
-      const sy = e.clientY - pos.y
-      const h = ref.current?.offsetHeight ?? 400
-      const move = (ev: PointerEvent) => setPos(clamp({ x: ev.clientX - sx, y: ev.clientY - sy }, h))
-      const up = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', up)
-      }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', up)
-    },
-    [pos]
-  )
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(POS_KEY, JSON.stringify(pos))
-    } catch {
-      /* depolama kapalı olabilir */
-    }
-  }, [pos])
-
-  // İçerik büyüyünce (TP/SL, güvenlik filtresi açılınca) pano ekrandan taşmasın: yukarı kaydır
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const ro = new ResizeObserver(() =>
-      setPos((p) => {
-        const y = Math.max(8, Math.min(p.y, window.innerHeight - el.offsetHeight - 8))
-        return y === p.y ? p : { ...p, y }
-      })
-    )
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const onResize = () => setPos((p) => clamp(p, ref.current?.offsetHeight ?? 400))
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('resize', onResize)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [onClose])
 
   const cta = d.busy ? 'Kaydediliyor…' : d.dirty ? 'Kuralları kaydet' : d.msg?.kind === 'ok' ? 'Kaydedildi' : 'Değişiklik yok'
 
   return (
-    <div ref={ref} className="gm-panel gm-float" style={{ left: pos.x, top: pos.y }} role="dialog" aria-label="Kurallar">
-      <div className="gm-head" onPointerDown={startDrag}>
-        <span className="gm-presets" title="Etkin ücret preset'i (F1 / F2 / F3)">
-          {([1, 2, 3] as PresetSlot[]).map((s) => (
-            <button key={s} className={`gm-preset ${activePreset === s ? 'on' : ''}`} disabled={!d.editable} onClick={() => setActivePreset(s)}>
-              P{s}
-            </button>
-          ))}
-        </span>
-        <span className="spacer" />
-        <span className="gm-chip" title={wallet ? wallet.address : 'Varsayılan cüzdan seçilmedi'}>
-          <Wallet size={12} /> {wallet ? (wallet.label ?? shortAddr(wallet.address)) : '—'}
-        </span>
-        <span className="gm-chip">
-          <SolMark size={12} /> {wallet?.balance !== undefined ? wallet.balance.toFixed(3) : '—'}
-        </span>
-        <button
-          className="icon-btn sm"
-          title="Tüm kural ayarları"
-          onClick={() => {
-            onClose()
-            go('settings', 'rules')
-          }}
-        >
-          <SettingsIcon size={14} />
-        </button>
-        <button className="icon-btn sm" title="Kapat (Esc)" onClick={onClose}>
-          <X size={14} />
-        </button>
-      </div>
-
+    <FloatingPanel
+      id="rules"
+      title="Kurallar"
+      className="gm"
+      anchorX={anchorX}
+      width={320}
+      minW={300}
+      onClose={onClose}
+      head={
+        <>
+          <span className="gm-presets" title="Etkin ücret preset'i (F1 / F2 / F3)">
+            {([1, 2, 3] as PresetSlot[]).map((s) => (
+              <button key={s} className={`gm-preset ${activePreset === s ? 'on' : ''}`} disabled={!d.editable} onClick={() => setActivePreset(s)}>
+                P{s}
+              </button>
+            ))}
+          </span>
+          <span className="spacer" />
+          <span className="gm-chip" title={wallet ? wallet.address : 'Varsayılan cüzdan seçilmedi'}>
+            <Wallet size={12} /> {wallet ? (wallet.label ?? shortAddr(wallet.address)) : '—'}
+          </span>
+          <span className="gm-chip">
+            <SolMark size={12} /> {wallet?.balance !== undefined ? wallet.balance.toFixed(3) : '—'}
+          </span>
+          <button
+            className="icon-btn sm"
+            title="Tüm kural ayarları"
+            onClick={() => {
+              onClose()
+              go('settings', 'rules')
+            }}
+          >
+            <SettingsIcon size={14} />
+          </button>
+        </>
+      }
+    >
       <div className="gm-tabs">
         <button className={`gm-tab ${tab === 'buy' ? 'on buy' : ''}`} onClick={() => setTab('buy')}>
           Alım
@@ -270,6 +208,6 @@ export function MiniRules({ onClose }: { onClose: () => void }) {
       )}
 
       <FeeSummary kind={tab === 'sell' ? 'sell' : 'buy'} slot={tab === 'auto' ? l.autoPreset : activePreset} />
-    </div>
+    </FloatingPanel>
   )
 }
