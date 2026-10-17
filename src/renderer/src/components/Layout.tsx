@@ -15,6 +15,7 @@ import {
   Play,
   Rocket,
   ScrollText,
+  SlidersHorizontal,
   Search,
   Settings as SettingsIcon,
   Users,
@@ -31,6 +32,7 @@ import { useNav, type Page } from '../lib/nav'
 import { useDeploy } from './DeployPanel'
 import { FeesPopover } from './FeesPopover'
 import { ConnPanel, EnginePanel, HistoryPanel, ModePanel, ThemePanel } from './StatusPanels'
+import { MiniRules } from './MiniRules'
 import { APP_VERSION, desktop, isDesktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
 
@@ -243,6 +245,7 @@ function StatusBar() {
   const { activePreset } = usePrefs()
   const [connected, setConnected] = useState(true)
   const [panel, setPanel] = useState<{ name: PanelName; left: number } | null>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)
   const barRef = useRef<HTMLElement>(null)
 
   // Kendi kanalımızın durumu (kopunca istemci kendisi yeniden bağlanır)
@@ -263,7 +266,8 @@ function StatusBar() {
 
   useEffect(() => {
     const on = (e: Event) => {
-      const name = (e as CustomEvent<PanelName>).detail
+      const name = (e as CustomEvent<PanelName | 'rules'>).detail
+      if (name === 'rules') return setRulesOpen(true)
       openAt(name, barRef.current?.querySelector<HTMLElement>(`[data-panel="${name}"]`) ?? null)
     }
     window.addEventListener('memebot:panel', on)
@@ -296,6 +300,10 @@ function StatusBar() {
         <CircleDollarSign size={12} />
         Ücret <span className="sb-pill">P{activePreset}</span>
       </button>
+      <button className={`sb-item ${rulesOpen ? 'open' : ''}`} onClick={() => setRulesOpen((v) => !v)} title="Taşınabilir kurallar panosu">
+        <SlidersHorizontal size={12} />
+        Kurallar
+      </button>
       <button {...btn('mode')}>
         <span className={rule.limits.liveTrading ? 'neg' : undefined}>{rule.limits.liveTrading ? 'GERÇEK işlem' : 'Deneme modu'}</span>
         <span className="faint">· {rule.mode === 'auto' ? 'otomatik' : rule.mode === 'manual' ? 'manuel' : 'izle'}</span>
@@ -307,6 +315,7 @@ function StatusBar() {
       {panel?.name === 'fees' && <FeesPopover onClose={close} left={left} />}
       {panel?.name === 'mode' && <ModePanel onClose={close} left={left} />}
       {panel?.name === 'theme' && <ThemePanel onClose={close} left={left} />}
+      {rulesOpen && <MiniRules onClose={() => setRulesOpen(false)} />}
 
       <div className="sb-right">
         {online && (

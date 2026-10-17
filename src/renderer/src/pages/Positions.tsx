@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { useOrders, type PositionRow } from '../lib/orders'
+import { usePipeline } from '../lib/pipeline'
 
 interface Position extends PositionRow {
   entry_price: number | null
@@ -41,6 +42,7 @@ function sol(n: number | null | undefined, sign = false): string {
 export function PositionsPage() {
   const { profile } = useAuth()
   const { sell, sellAll } = useOrders()
+  const { rule } = usePipeline()
   // Canlı fiyatı motor 15 sn'de bir pozisyon satırına yazar
   const priceOf = (p: Position) => (p.last_price_usd != null ? Number(p.last_price_usd) : undefined)
   const [open, setOpen] = useState<Position[]>([])
@@ -194,7 +196,7 @@ export function PositionsPage() {
                   </td>
                   <td className="muted">{new Date(p.opened_at).toLocaleString('tr-TR')}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {[25, 50, 100].map((pct) => (
+                    {rule.limits.sellPresetsPct.map((pct) => (
                       <button
                         key={pct}
                         className={`btn btn-sm ${pct === 100 ? 'btn-danger' : ''}`}

@@ -150,6 +150,7 @@ export function ApprovalsPage({ onCheck }: { onCheck: (mint: string) => void }) 
               <div className="row">
                 {rule.limits.buyPresetsSol
                   .filter((a) => a <= rule.limits.maxBuySol)
+                  .slice(0, 4)
                   .map((a) => (
                     <button
                       key={a}

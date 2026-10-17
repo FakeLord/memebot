@@ -9,7 +9,8 @@ export type TradeMode = 'watch' | 'manual' | 'auto'
 export interface RuleLimits {
   allowWarn: boolean // UYARI alanları da onaya düşsün mü
   approvalTtlMin: number // onay bekleme süresi
-  buyPresetsSol: number[]
+  buyPresetsSol: number[] // hızlı alım düğmeleri (en fazla 8)
+  sellPresetsPct: number[] // hızlı satış düğmeleri, yüzde (en fazla 8)
   maxBuySol: number
   // --- işlem
   liveTrading: boolean // false = deneme modu: sadece GMGN teklifi alınır, para harcanmaz
@@ -38,6 +39,7 @@ export const DEFAULT_LIMITS: RuleLimits = {
   allowWarn: false,
   approvalTtlMin: 10,
   buyPresetsSol: [0.1, 0.25, 0.5],
+  sellPresetsPct: [25, 50, 100],
   maxBuySol: 1,
   liveTrading: false,
   slippage: 30,

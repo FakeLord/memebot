@@ -15,7 +15,9 @@ function createWindow(): void {
     minWidth: 980,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0b0b0c',
+    backgroundColor: '#111113',
+    // Paketli uygulamada ikon .exe'den gelir; geliştirmede build/icon.png
+    icon: app.isPackaged ? undefined : join(__dirname, '../../build/icon.png'),
     autoHideMenuBar: true,
     title: 'MemeBot',
     webPreferences: {

@@ -8,6 +8,7 @@ files:
   - package.json
   - '!**/*.map'
 win:
+  icon: build/icon.png
   target:
     - target: nsis
       arch: [x64]
