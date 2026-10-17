@@ -17,6 +17,7 @@ import { FeedPage } from './pages/Feed'
 import { TokenCheckPage } from './pages/TokenCheck'
 import { PositionsPage } from './pages/Positions'
 import { SettingsPage } from './pages/Settings'
+import { SpeedPage } from './pages/Speed'
 import { NavContext, type Page, type Section } from './lib/nav'
 
 export function App() {
@@ -107,6 +108,7 @@ function Gate() {
                 {page === 'token' && <TokenCheckPage key={checkTarget?.n ?? 0} initial={checkTarget?.mint} />}
                 {page === 'positions' && <PositionsPage />}
                 {page === 'orders' && <OrdersPage />}
+                {page === 'speed' && <SpeedPage />}
                 {page === 'settings' && <SettingsPage />}
               </Layout>
             </NavContext.Provider>
@@ -129,12 +131,19 @@ function Shortcuts({ onNavigate }: { onNavigate: (p: Page) => void }) {
       const t = e.target as HTMLElement | null
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
       if (typing && !/^F\d+$/.test(combo)) return
-      const action = (Object.keys(keybinds) as KeyAction[]).find((a) => keybinds[a] === combo)
+      const action = (Object.keys(keybinds) as KeyAction[]).find((a) => keybinds[a] && keybinds[a] === combo)
       if (!action) return
       e.preventDefault()
+      const panel = (name: string) => window.dispatchEvent(new CustomEvent('memebot:panel', { detail: name }))
       if (action === 'preset1' || action === 'preset2' || action === 'preset3') setActivePreset(Number(action.slice(-1)) as 1 | 2 | 3)
-      else if (action === 'feed' || action === 'approvals' || action === 'positions') onNavigate(action)
+      else if (action === 'feed' || action === 'approvals' || action === 'positions' || action === 'orders' || action === 'token' || action === 'speed' || action === 'settings')
+        onNavigate(action)
       else if (action === 'deploy') window.dispatchEvent(new CustomEvent('memebot:deploy'))
+      else if (action === 'feesPanel') panel('fees')
+      else if (action === 'rulesPanel') panel('rules')
+      else if (action === 'historyPanel') panel('history')
+      else if (action === 'fullscreen')
+        (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => undefined)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

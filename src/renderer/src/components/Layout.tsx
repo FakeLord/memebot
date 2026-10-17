@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  Activity,
   CheckCheck,
   CircleDollarSign,
   Gauge,
@@ -42,7 +43,8 @@ const HEAD: Partial<Record<Page, { icon: LucideIcon; title: string; sub: string 
   approvals: { icon: CheckCheck, title: 'Onay Bekleyenler', sub: 'Güvenlikten geçen sinyaller' },
   positions: { icon: LineChart, title: 'Pozisyonlar', sub: 'Açık ve kapanan işlemler' },
   orders: { icon: ScrollText, title: 'Emirler', sub: 'Alım-satım geçmişi' },
-  token: { icon: Search, title: 'Token Kontrol', sub: 'Adres ya da mesaj yapıştırın' }
+  token: { icon: Search, title: 'Token Kontrol', sub: 'Adres ya da mesaj yapıştırın' },
+  speed: { icon: Activity, title: 'Hız', sub: 'API ve işlem süreleri' }
 }
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -160,6 +162,9 @@ function TopBar() {
         </button>
         <button className={`tb icon ${page === 'token' ? 'on' : ''}`} title="Token kontrol" onClick={() => go('token')}>
           <Search size={14} />
+        </button>
+        <button className={`tb icon ${page === 'speed' ? 'on' : ''}`} title="Hız: API ve işlem süreleri" onClick={() => go('speed')}>
+          <Activity size={14} />
         </button>
         <button className="tb icon" title={full ? 'Tam ekrandan çık' : 'Tam ekran'} onClick={toggleFull}>
           {full ? <Minimize size={14} /> : <Maximize size={14} />}

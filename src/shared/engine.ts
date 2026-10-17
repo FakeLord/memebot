@@ -13,7 +13,7 @@ export interface EngineCommands {
   'gmgn.save': [{ sealed: Sealed }, { ok: true }]
   'gmgn.clear': [Record<string, never>, { ok: true }]
   'gmgn.plan': [{ plan: GmgnPlan }, { ok: true }]
-  'gmgn.test': [Record<string, never>, { ok: true }]
+  'gmgn.test': [Record<string, never>, { ok: true; ms: number }] // ms: motor → GMGN → motor süresi
   'gmgn.wallets': [Record<string, never>, { wallets: WalletInfo[]; selected?: string }]
   'gmgn.wallet': [{ address: string }, { ok: true }]
   'token.check': [{ mints: string[] }, { results: TokenCheckResult[] }]

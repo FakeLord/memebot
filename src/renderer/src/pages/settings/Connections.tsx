@@ -57,12 +57,12 @@ function GmgnSection() {
   const configured = me?.gmgn.configured === true
   const plan = me?.gmgn.plan ?? 'free'
 
-  const act = async (fn: () => Promise<unknown>, ok: string) => {
+  const act = async <T,>(fn: () => Promise<T>, ok: string | ((r: T) => string)) => {
     setBusy(true)
     setMsg(null)
     try {
-      await fn()
-      setMsg({ kind: 'ok', text: ok })
+      const r = await fn()
+      setMsg({ kind: 'ok', text: typeof ok === 'function' ? ok(r) : ok })
       return true
     } catch (e) {
       setMsg({ kind: 'error', text: errText(e) })
@@ -111,7 +111,13 @@ function GmgnSection() {
             </select>
           </SettingRow>
           <SettingRow title="Bağlantı testi" desc="Motor GMGN'e örnek bir istek gönderir">
-            <button className="btn btn-sm" disabled={busy || !online} onClick={() => act(() => run('gmgn.test', {}), 'GMGN bağlantısı çalışıyor.')}>
+            <button className="btn btn-sm" disabled={busy || !online} onClick={() => {
+                const t0 = performance.now()
+                act(
+                  () => run('gmgn.test', {}),
+                  (r) => `GMGN bağlantısı çalışıyor · GMGN ${r.ms} ms · uçtan uca ${Math.round(performance.now() - t0)} ms`
+                )
+              }}>
               <PlugZap size={13} /> Test et
             </button>
           </SettingRow>

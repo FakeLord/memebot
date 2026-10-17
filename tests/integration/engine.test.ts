@@ -299,6 +299,27 @@ d('MemeBot Engine (yerel Supabase)', () => {
     await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 }, 'manual')
   })
 
+  it('deneme modu GMGN\'e swap göndermez; otomatik mod autoPreset ücretlerini kullanır', async () => {
+    await admin
+      .from('fee_presets')
+      .upsert({ user_id: dev.id, slot: 3, kind: 'buy', priority_sol: 0.0033, tip_sol: 0.0044, slippage: 15, anti_mev: false }, { onConflict: 'user_id,slot,kind' })
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, autoBuySol: 0.05, maxOpenPositions: 50, autoPreset: 3 }, 'auto')
+    await engine.ctx.users.load()
+    const swapsBefore = gmgn.calls.filter((c) => c.fn === 'swap').length
+    const m = mint()
+    await signal(dev.client, m)
+    const o = await waitFor(async () => {
+      const { data } = await admin.from('orders').select('status, preset, request, is_dry_run').eq('mint', m).maybeSingle()
+      return data?.status === 'confirmed' ? data : null
+    })
+    expect(o.is_dry_run).toBe(true)
+    expect(o.preset).toBe(3)
+    expect(o.request).toMatchObject({ priorityFeeSol: 0.0033, tipFeeSol: 0.0044, slippage: 15, antiMev: false })
+    expect(gmgn.calls.filter((c) => c.fn === 'swap').length).toBe(swapsBefore)
+    await admin.from('fee_presets').delete().eq('user_id', dev.id)
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 }, 'manual')
+  })
+
   it('gerçek mod: swap → GMGN emir takibi → kesinleşince pozisyon (sahte GMGN)', async () => {
     await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: true, maxOpenPositions: 50 })
     gmgn.queryResults = ['pending', 'processed', 'confirmed']

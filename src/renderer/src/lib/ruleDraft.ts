@@ -93,6 +93,8 @@ export function useRuleDraft() {
     setBusy(true)
     const e = await saveRule(clean)
     setBusy(false)
+    // Kaydedilen hal (boş yuvalar ayıklanmış) taslağın yeni hali olur; yoksa "kaydedilmemiş" görünmeye devam eder
+    if (!e) setDraft(clean)
     setMsg(e ? { kind: 'error', text: e } : { kind: 'ok', text: 'Kaydedildi; yeni sinyallere hemen uygulanır.' })
   }
 

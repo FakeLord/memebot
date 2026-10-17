@@ -132,7 +132,15 @@ export const KEY_ACTIONS = {
   feed: 'Canlı Akış',
   approvals: 'Onay Bekleyenler',
   positions: 'Pozisyonlar',
-  deploy: 'Deploy formu'
+  deploy: 'Deploy formu',
+  orders: 'Emirler',
+  token: 'Token kontrol',
+  speed: 'Hız',
+  settings: 'Ayarlar',
+  feesPanel: 'Ücret panosu',
+  rulesPanel: 'Kurallar panosu',
+  historyPanel: 'Geçmiş panosu',
+  fullscreen: 'Tam ekran'
 } as const
 
 export type KeyAction = keyof typeof KEY_ACTIONS
@@ -144,7 +152,16 @@ export const DEFAULT_KEYBINDS: Record<KeyAction, string> = {
   feed: 'Alt+1',
   approvals: 'Alt+2',
   positions: 'Alt+3',
-  deploy: 'Alt+D'
+  deploy: 'Alt+D',
+  // Varsayılanda atanmamış (boş): Ayarlar → Kısayollar → "Kısayol ekle"
+  orders: '',
+  token: '',
+  speed: '',
+  settings: '',
+  feesPanel: '',
+  rulesPanel: '',
+  historyPanel: '',
+  fullscreen: ''
 }
 
 /** Klavye olayını "Ctrl+Shift+K" biçimine çevirir. Sadece değiştirici tuş basıldıysa null. */

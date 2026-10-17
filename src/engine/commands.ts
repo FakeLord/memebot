@@ -92,9 +92,12 @@ export class Commands {
         return { ok: true }
       },
       'gmgn.test': async (userId) => {
-        const r = await needGmgn(userId).client.userInfo()
+        const g = needGmgn(userId)
+        const t0 = performance.now()
+        const r = await g.client.userInfo()
+        const ms = Math.round(performance.now() - t0)
         if (!r.ok) throw new CommandError(`GMGN: ${r.error}`)
-        return { ok: true }
+        return { ok: true, ms }
       },
       'gmgn.wallets': async (userId) => {
         const g = needGmgn(userId)

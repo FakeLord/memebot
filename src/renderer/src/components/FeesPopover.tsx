@@ -196,7 +196,7 @@ export function FeesPopover({ onClose, left }: { onClose: () => void; left: numb
 
       <div className="popover-foot">
         <button className="btn btn-sm" disabled={!editable || !saved} onClick={() => resetPreset(slot, kind)}>
-          Preset {slot} sıfırla
+          P{slot} {KINDS.find((k) => k.kind === kind)?.label} sıfırla
         </button>
         <span>
           Varsayılan: {defaults.priorityFeeSol} / {defaults.tipFeeSol} SOL

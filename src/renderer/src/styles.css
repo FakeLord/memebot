@@ -631,3 +631,13 @@ button.gm-cell { cursor: default; }
   .float-head { cursor: default; }
   .float-resize { display: none; }
 }
+
+/* ---------------------------------------------------------------- hız sayfası */
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
+.spark span { flex: 1; min-width: 3px; max-width: 14px; border-radius: 2px 2px 0 0; background: var(--accent); opacity: 0.85; }
+.speed-cols { display: flex; gap: 18px; }
+.speed-cols span { display: grid; gap: 1px; text-align: right; min-width: 62px; }
+.speed-cols small { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.speed-cols b { font: 600 12.5px var(--mono); }
+.speed-cols b.warn { color: var(--warn); }
+@media (max-width: 760px) { .speed-cols { gap: 10px; } .speed-cols span { min-width: 0; } .speed-cols span:nth-child(n + 3) { display: none; } }
