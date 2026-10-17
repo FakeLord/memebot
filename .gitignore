@@ -17,3 +17,4 @@ engine-data/
 
 # Lisansı yeniden dağıtımı yasaklayan ham ses dosyaları (yalnız yerelde)
 sesler-yerel/
+vitest.json

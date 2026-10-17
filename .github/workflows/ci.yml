@@ -19,3 +19,22 @@ jobs:
       # Birim testleri (entegrasyon testleri yerel Supabase ister; CI'da kendiliğinden atlanır)
       - run: npm test
       - run: npm run build:web
+
+  # Entegrasyon testleri: yerel Supabase (Docker) üzerinde motor, RLS, 2FA zorunluluğu, çağrıcı kuralları vb.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Yerel Supabase başlat (migration'lar otomatik uygulanır)
+        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,mailpit
+      - name: Testler (birim + entegrasyon); entegrasyon atlanırsa iş başarısız sayılır
+        run: |
+          npx vitest run --reporter=default --reporter=json --outputFile=vitest.json
+          node -e "const r=require('./vitest.json');const skipped=r.numPendingTests;console.log('atlanan test:',skipped);if(skipped>0){console.error('Entegrasyon testleri atlandı');process.exit(1)}"
+      - if: always()
+        run: npx supabase stop
