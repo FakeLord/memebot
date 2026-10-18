@@ -1,6 +1,6 @@
 import { createPublicKey, generateKeyPairSync, randomBytes, verify } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { normalizeSigningKey, signMessage } from '../../src/engine/gmgn/signer'
+import { generateSigningKeyPair, normalizeSigningKey, signMessage } from '../../src/engine/gmgn/signer'
 
 // Kullanıcının yapıştırabileceği farklı imza anahtarı biçimleri → hepsi aynı geçerli PEM'e dönmeli
 
@@ -64,5 +64,16 @@ describe('imza anahtarı biçimleri', () => {
     expect(() => normalizeSigningKey('   ')).toThrow(/boş/)
     expect(() => normalizeSigningKey('merhaba dünya!')).toThrow(/tanınmadı/)
     expect(() => normalizeSigningKey('-----BEGIN PRIVATE KEY-----\nabc')).toThrow(/END/)
+  })
+})
+
+describe('motorda anahtar çifti üretimi', () => {
+  it('üretilen özel anahtar, açık anahtarla doğrulanan imza atar', () => {
+    const pair = generateSigningKeyPair()
+    expect(pair.publicKeyPem).toMatch(/^-----BEGIN PUBLIC KEY-----/)
+    expect(normalizeSigningKey(pair.privateKeyPem)).toBe(pair.privateKeyPem)
+    const sig = signMessage('deneme', pair.privateKeyPem)
+    expect(verify(null, Buffer.from('deneme'), createPublicKey(pair.publicKeyPem), Buffer.from(sig, 'base64'))).toBe(true)
+    expect(generateSigningKeyPair().publicKeyPem).not.toBe(pair.publicKeyPem)
   })
 })

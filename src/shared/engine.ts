@@ -11,6 +11,7 @@ export type GmgnPlan = 'free' | 'plus' | 'pro'
 // Komut türü → [girdi, çıktı]. "sealed" alanları mühürlü zarftır (shared/seal.ts).
 export interface EngineCommands {
   'gmgn.save': [{ sealed: Sealed }, { ok: true }]
+  'gmgn.keygen': [{ fresh?: boolean }, { publicKeyPem: string }] // özel anahtar motorda kalır
   'gmgn.clear': [Record<string, never>, { ok: true }]
   'gmgn.plan': [{ plan: GmgnPlan }, { ok: true }]
   'gmgn.test': [Record<string, never>, { ok: true; ms: number }] // ms: motor → GMGN → motor süresi
@@ -124,7 +125,7 @@ export interface DashGmgn {
 
 export interface EngineUserState {
   user_id: string
-  gmgn: { configured?: boolean; plan?: GmgnPlan; wallet?: string | null; dash?: DashGmgn }
+  gmgn: { configured?: boolean; plan?: GmgnPlan; wallet?: string | null; pendingPublicKey?: string | null; dash?: DashGmgn }
   telegram: TelegramStatus | Record<string, never>
   x: {
     configured?: boolean

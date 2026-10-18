@@ -1,4 +1,4 @@
-import { generateKeyPairSync, randomBytes } from 'node:crypto'
+import { createPublicKey, generateKeyPairSync, randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Engine } from '../../src/engine/engine'
@@ -117,6 +117,33 @@ d('MemeBot Engine (yerel Supabase)', () => {
 
   it('geçersiz imza anahtarı reddedilir', async () => {
     await expect(runSealed(asst.client, asst.id, 'gmgn.save', { apiKey: 'k', privateKeyPem: 'yanlış' })).rejects.toThrow(/İmza anahtarı geçersiz/)
+  })
+
+  it('anahtar çifti motorda üretilir: arayüze sadece açık anahtar döner, API Key ile kaydedilince kasaya taşınır', async () => {
+    const a = await runCommand(asst.client, asst.id, 'gmgn.keygen', {})
+    expect(a.publicKeyPem).toMatch(/BEGIN PUBLIC KEY/)
+    expect(JSON.stringify(a)).not.toMatch(/PRIVATE/)
+    // Tekrar basınca aynı çift (GMGN'e yüklenmiş olabilir); "fresh" ile yenisi
+    expect((await runCommand(asst.client, asst.id, 'gmgn.keygen', {})).publicKeyPem).toBe(a.publicKeyPem)
+    const b = await runCommand(asst.client, asst.id, 'gmgn.keygen', { fresh: true })
+    expect(b.publicKeyPem).not.toBe(a.publicKeyPem)
+    await waitFor(async () => {
+      const { data } = await asst.client.from('engine_user_state').select('gmgn').eq('user_id', asst.id).maybeSingle()
+      return data?.gmgn?.pendingPublicKey === b.publicKeyPem
+    })
+    // İmza anahtarı boş gönderilir → motor bekleyen anahtarı kullanır
+    await runSealed(asst.client, asst.id, 'gmgn.save', { apiKey: 'keygen-api-key', privateKeyPem: '' })
+    const saved = engine.ctx.vault.get(asst.id)
+    expect(saved.gmgnPending).toBeUndefined()
+    expect(createPublicKey(saved.gmgn!.privateKeyPem).export({ type: 'spki', format: 'pem' }).toString()).toBe(b.publicKeyPem)
+    const st = await waitFor(async () => {
+      const { data } = await asst.client.from('engine_user_state').select('gmgn').eq('user_id', asst.id).maybeSingle()
+      return data?.gmgn?.configured && !data.gmgn.pendingPublicKey ? data : null
+    })
+    expect(st.gmgn.configured).toBe(true)
+    // Bekleyen anahtar yokken boş imza anahtarı reddedilir
+    await expect(runSealed(asst.client, asst.id, 'gmgn.save', { apiKey: 'k', privateKeyPem: '' })).rejects.toThrow(/İmza anahtarı boş/)
+    await runCommand(asst.client, asst.id, 'gmgn.clear', {})
   })
 
   it('cüzdan listesi ve seçimi', async () => {

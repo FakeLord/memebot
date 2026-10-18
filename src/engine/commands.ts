@@ -5,7 +5,8 @@ import type { SourceHub } from './sources'
 import type { DeployEngine } from './deploy'
 import type { DashboardFeed } from './dashboard'
 import type { DeployForm } from '../shared/deploy'
-import { normalizeSigningKey } from './gmgn/signer'
+import { generateSigningKeyPair, normalizeSigningKey } from './gmgn/signer'
+import { gmgnPublicState } from './vault'
 import { extractWallets } from './gmgn/trade'
 import { pollMonitors } from './xflux/client'
 import { normalizeHandle } from './tweetstream/client'
@@ -50,10 +51,7 @@ export class Commands {
   ) {
     const { vault, state } = ctx
     const xPoll = deps.xPoll ?? pollMonitors
-    const gmgnState = (userId: string) => {
-      const g = vault.get(userId).gmgn
-      state.patch(userId, { gmgn: { configured: !!g, plan: g?.plan ?? 'free', wallet: g?.wallet ?? null } })
-    }
+    const gmgnState = (userId: string) => state.patch(userId, { gmgn: gmgnPublicState(vault.get(userId)) })
     const needGmgn = (userId: string) => {
       const g = ctx.gmgn(userId)
       if (!g) throw new CommandError('GMGN anahtarı girilmemiş (Ayarlar)')
@@ -65,9 +63,13 @@ export class Commands {
         const s = await this.open<{ apiKey?: string; privateKeyPem?: string }>(userId, 'gmgn.save', p)
         const apiKey = String(s.apiKey ?? '').trim()
         if (!apiKey) throw new CommandError('API anahtarı boş')
+        // İmza anahtarı girilmediyse motorda üretilmiş (bekleyen) anahtar kullanılır
+        const pending = vault.get(userId).gmgnPending
+        const typed = String(s.privateKeyPem ?? '').trim()
+        if (!typed && !pending) throw new CommandError('İmza anahtarı boş: yapıştırın ya da "Anahtar çifti oluştur" ile üretin')
         let pem: string
         try {
-          pem = normalizeSigningKey(String(s.privateKeyPem ?? ''))
+          pem = typed ? normalizeSigningKey(typed) : pending!.privateKeyPem
         } catch (e) {
           throw new CommandError(`İmza anahtarı geçersiz: ${(e as Error).message}`)
         }
@@ -75,10 +77,22 @@ export class Commands {
         // Cüzdan API anahtarına bağlı: anahtar değiştiyse seçimi sıfırla
         const wallet = prev?.apiKey === apiKey ? prev.wallet : undefined
         vault.set(userId, 'gmgn', { apiKey, privateKeyPem: pem, plan: prev?.plan, wallet })
+        if (!typed) vault.set(userId, 'gmgnPending', undefined)
         gmgnState(userId)
         deps.dashboard.reset(userId)
         await ctx.audit(userId, 'gmgn.key_saved')
         return { ok: true }
+      },
+      // Özel anahtar motordan hiç çıkmaz; arayüze sadece açık anahtar döner. Bekleyen çift varsa aynısı
+      // döner (GMGN'e yüklenmiş olabilir); "fresh" ile yenisi üretilir.
+      'gmgn.keygen': async (userId, p) => {
+        const cur = vault.get(userId).gmgnPending
+        if (cur && !p.fresh) return { publicKeyPem: cur.publicKeyPem }
+        const pair = generateSigningKeyPair()
+        vault.set(userId, 'gmgnPending', { ...pair, createdAt: Date.now() })
+        gmgnState(userId)
+        await ctx.audit(userId, 'gmgn.keypair_generated')
+        return { publicKeyPem: pair.publicKeyPem }
       },
       'gmgn.clear': async (userId) => {
         vault.set(userId, 'gmgn', undefined)

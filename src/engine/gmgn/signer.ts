@@ -1,4 +1,4 @@
-import { createPrivateKey, randomUUID, sign } from 'node:crypto'
+import { createPrivateKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 
 // GMGN OpenAPI istek imzası — resmi gmgn-cli (src/client/signer.ts) ile aynı şema.
 // timestamp: Unix saniye, sunucu ±5 sn tolerans gösterir.
@@ -104,6 +104,15 @@ export function normalizeSigningKey(input: string): string {
     return tryPem(toPem(bytes))
   } catch {
     throw new Error('Anahtar okunamadı. GMGN\'den aldığınız "-----BEGIN PRIVATE KEY-----" ile başlayan metnin tamamını (başlık ve son satır dahil) yapıştırın.')
+  }
+}
+
+/** Yeni Ed25519 imza anahtarı çifti: açık anahtar GMGN'e yüklenir, özel anahtar motorda kalır. */
+export function generateSigningKeyPair(): { privateKeyPem: string; publicKeyPem: string } {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+  return {
+    privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }).toString()
   }
 }
 

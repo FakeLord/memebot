@@ -12,6 +12,7 @@ import { Commands } from './commands'
 import { FeedWriter } from './feed'
 import { DeployEngine } from './deploy'
 import { lastLatencyMs } from './gmgn/client'
+import { gmgnPublicState } from './vault'
 import type { RuleRow } from '../shared/rules'
 import type { XPollResult } from '../shared/types'
 
@@ -104,8 +105,7 @@ export class Engine {
 
     // Kasadaki her kullanıcı için GMGN durumu arayüze
     for (const id of users.activeIds()) {
-      const g = vault.get(id).gmgn
-      this.ctx.state.patch(id, { gmgn: { configured: !!g, plan: g?.plan ?? 'free', wallet: g?.wallet ?? null } })
+      this.ctx.state.patch(id, { gmgn: gmgnPublicState(vault.get(id)) })
     }
     await this.orders.recover()
     await this.deploy.recover()
@@ -183,8 +183,7 @@ export class Engine {
         n++
       }
       if (this.active) {
-        const g = vault.get(userId).gmgn
-        state.patch(userId, { gmgn: { configured: !!g, plan: g?.plan ?? 'free', wallet: g?.wallet ?? null } })
+        state.patch(userId, { gmgn: gmgnPublicState(vault.get(userId)) })
         if (kinds.telegram) void this.sources.tg(userId).attach()
         if (kinds.xflux) this.sources.syncX(userId)
       }

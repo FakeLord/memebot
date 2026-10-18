@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Cpu, FileText, KeyRound, PlugZap, Save, Server, Trash2 } from 'lucide-react'
+import { Copy, Cpu, ExternalLink, FileText, KeyRound, PlugZap, RefreshCw, Save, Server, Sparkles, Trash2 } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
 import { errText, useEngine } from '../../lib/engine'
 import { desktop } from '../../lib/platform'
@@ -54,8 +54,11 @@ function GmgnSection() {
   const [msg, setMsg] = useState<Msg>(null)
   const [busy, setBusy] = useState(false)
   const [edit, setEdit] = useState(false)
+  // İmza anahtarı: motorda üretilir (önerilen; özel anahtar motordan çıkmaz) ya da elle yapıştırılır
+  const [mode, setMode] = useState<'generate' | 'paste'>('generate')
   const configured = me?.gmgn.configured === true
   const plan = me?.gmgn.plan ?? 'free'
+  const pendingPub = me?.gmgn.pendingPublicKey ?? null
 
   const act = async <T,>(fn: () => Promise<T>, ok: string | ((r: T) => string)) => {
     setBusy(true)
@@ -72,8 +75,22 @@ function GmgnSection() {
     }
   }
 
+  const keygen = (fresh: boolean) =>
+    act(() => run('gmgn.keygen', { fresh }), 'Anahtar çifti motorda oluşturuldu. Açık anahtarı kopyalayıp GMGN’e yapıştırın.')
+
+  const copyPub = async () => {
+    if (!pendingPub) return
+    try {
+      await navigator.clipboard.writeText(pendingPub)
+      setMsg({ kind: 'ok', text: 'Açık anahtar kopyalandı.' })
+    } catch {
+      setMsg({ kind: 'error', text: 'Kopyalanamadı — metni seçip elle kopyalayın.' })
+    }
+  }
+
   const save = async () => {
-    if (await act(() => runSealed('gmgn.save', { apiKey, privateKeyPem: pem }), 'Anahtar motora şifreli olarak kaydedildi.')) {
+    const privateKeyPem = mode === 'paste' ? pem : '' // boşsa motor bekleyen (üretilmiş) anahtarı kullanır
+    if (await act(() => runSealed('gmgn.save', { apiKey, privateKeyPem }), 'Anahtar motora şifreli olarak kaydedildi.')) {
       setApiKey('')
       setPem('')
       setEdit(false)
@@ -137,7 +154,66 @@ function GmgnSection() {
       )}
       {showForm && (
         <div style={{ marginTop: configured ? 4 : 0 }}>
-          <SettingRow title="API Key" desc="gmgn.ai/ai → API">
+          <SettingRow title="İmza anahtarı" desc="GMGN API isteklerini imzalayan Ed25519 anahtar çifti. Cüzdan anahtarı DEĞİL." stacked>
+            <div className="seg" style={{ maxWidth: 360 }}>
+              <button className={`seg-btn${mode === 'generate' ? ' on' : ''}`} onClick={() => setMode('generate')}>
+                Motorda oluştur (önerilen)
+              </button>
+              <button className={`seg-btn${mode === 'paste' ? ' on' : ''}`} onClick={() => setMode('paste')}>
+                Kendi anahtarımı yapıştır
+              </button>
+            </div>
+          </SettingRow>
+          {mode === 'generate' ? (
+            !pendingPub ? (
+              <SettingRow title="1. Anahtar çifti" desc="Motor bir çift üretir. Özel anahtar motorun kasasında kalır, hiçbir yerde gösterilmez; size sadece açık anahtar verilir.">
+                <button className="btn btn-sm btn-primary" disabled={busy || !online} onClick={() => keygen(false)}>
+                  <Sparkles size={13} /> Anahtar çifti oluştur
+                </button>
+              </SettingRow>
+            ) : (
+              <SettingRow
+                title="1. Açık anahtar (PUBLIC KEY)"
+                desc={
+                  <>
+                    Bunu kopyalayın ve <span className="mono">gmgn.ai/ai</span> sayfasında API Key oluştururken "public key" alanına yapıştırın. Açık
+                    anahtar gizli değildir.
+                  </>
+                }
+                stacked
+              >
+                <textarea rows={3} className="mono" readOnly value={pendingPub} onFocus={(e) => e.currentTarget.select()} />
+                <div className="row" style={{ gap: 6, marginTop: 6 }}>
+                  <button className="btn btn-sm btn-primary" onClick={copyPub}>
+                    <Copy size={13} /> Kopyala
+                  </button>
+                  <a className="btn btn-sm" href="https://gmgn.ai/ai" target="_blank" rel="noreferrer">
+                    <ExternalLink size={13} /> gmgn.ai/ai'yi aç
+                  </a>
+                  <button
+                    className="btn btn-sm"
+                    disabled={busy || !online}
+                    onClick={() =>
+                      confirm('Yeni bir anahtar çifti üretilsin mi? Eski açık anahtarı GMGN’e yüklediyseniz o API Key bu çiftle çalışmaz.') && keygen(true)
+                    }
+                  >
+                    <RefreshCw size={13} /> Yenisini üret
+                  </button>
+                </div>
+              </SettingRow>
+            )
+          ) : (
+            <SettingRow title="Özel anahtar (PRIVATE KEY)" desc="&quot;-----BEGIN PRIVATE KEY-----&quot; satırı dahil tamamını yapıştırın. Açık anahtar buraya girilmez." stacked>
+              <textarea
+                rows={4}
+                value={pem}
+                onChange={(e) => setPem(e.target.value)}
+                spellCheck={false}
+                placeholder={'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
+              />
+            </SettingRow>
+          )}
+          <SettingRow title={mode === 'generate' ? '2. API Key' : 'API Key'} desc="GMGN'in açık anahtarınız için verdiği API Key (gmgn.ai/ai → API)">
             <input
               className="input-sm mono"
               style={{ width: 280 }}
@@ -147,17 +223,8 @@ function GmgnSection() {
               spellCheck={false}
             />
           </SettingRow>
-          <SettingRow title="İmza anahtarı" desc="GMGN API imza anahtarı (Ed25519) — &quot;-----BEGIN PRIVATE KEY-----&quot; satırı dahil tamamını yapıştırın. Cüzdan anahtarı DEĞİL." stacked>
-            <textarea
-              rows={4}
-              value={pem}
-              onChange={(e) => setPem(e.target.value)}
-              spellCheck={false}
-              placeholder={'-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'}
-            />
-          </SettingRow>
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-            <button className="btn btn-sm btn-primary" disabled={busy || !online || !apiKey || !pem} onClick={save}>
+            <button className="btn btn-sm btn-primary" disabled={busy || !online || !apiKey || (mode === 'paste' ? !pem : !pendingPub)} onClick={save}>
               <Save size={13} /> Şifreleyip kaydet
             </button>
           </div>

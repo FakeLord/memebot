@@ -21,8 +21,17 @@ export interface TelegramSecret {
   session: string
 }
 
+// "Anahtar çifti oluştur" ile motorda üretilen, henüz API Key ile eşleşmemiş imza anahtarı.
+// Kullanıcı açık anahtarı GMGN'e yükleyip aldığı API Key'i girince gmgn kaydına taşınır.
+export interface GmgnPendingKey {
+  privateKeyPem: string
+  publicKeyPem: string
+  createdAt: number
+}
+
 export interface UserSecrets {
   gmgn?: GmgnSecret
+  gmgnPending?: GmgnPendingKey
   xflux?: { apiKey: string }
   tweetstream?: { apiKey: string; region?: 'global' | 'usa' }
   telegram?: TelegramSecret
@@ -32,6 +41,16 @@ interface VaultData {
   v: 1
   seal: { publicJwk: JsonWebKey; privateJwk: JsonWebKey }
   users: Record<string, UserSecrets>
+}
+
+/** engine_user_state.gmgn'e yazılan, sır içermeyen GMGN durumu. */
+export function gmgnPublicState(u: UserSecrets) {
+  return {
+    configured: !!u.gmgn,
+    plan: u.gmgn?.plan ?? 'free',
+    wallet: u.gmgn?.wallet ?? null,
+    pendingPublicKey: u.gmgnPending?.publicKeyPem ?? null
+  }
 }
 
 const USER_ID = /^[0-9a-f-]{36}$/i
