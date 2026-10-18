@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Download, Keyboard, Lock, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, Download, Keyboard, Lock, Presentation, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 import { ROLE_LABEL, useAuth } from '../../lib/auth'
 import { useEngine } from '../../lib/engine'
 import { useNav } from '../../lib/nav'
 import { APP_VERSION, desktop } from '../../lib/platform'
-import { Section, SettingRow, Stat, StatusPill } from '../../components/ui'
+import { Section, SettingRow, Stat, StatusPill, Toggle } from '../../components/ui'
+import { setDemo, useDemoMode } from '../../lib/demo'
 import type { UpdateStatus } from '../../../../shared/types'
 
 // Hakkında: sürüm, güncelleme, uygulamanın para güvenliği sözleşmeleri.
@@ -22,6 +23,7 @@ export function AboutSection() {
   const { status } = useEngine()
   const { go } = useNav()
   const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' })
+  const demo = useDemoMode()
 
   useEffect(() => desktop?.updater.onStatus(setUpdate), [])
 
@@ -60,6 +62,12 @@ export function AboutSection() {
         <Stat label="Motor" value={<span className="mono">{status?.version ?? '—'}</span>} />
         <Stat label="Rolünüz" value={profile ? ROLE_LABEL[profile.role] : '—'} />
       </div>
+
+      <Section icon={Presentation} title="Demo modu" note="Demo modunda Dashboard, ana sayfa panelleri, Pozisyonlar ve Akış örnek veriyle dolar. Hiçbir şey kaydedilmez, alım-satım kapalıdır; kapatınca gerçek verileriniz görünür.">
+        <SettingRow title="Örnek veriyle göster" desc={demo ? 'Açık: ekrandaki veriler örnektir' : 'Kapalı: gerçek verileriniz görünüyor'}>
+          <Toggle checked={demo} onChange={setDemo} />
+        </SettingRow>
+      </Section>
 
       <Section icon={Download} title="Güncellemeler">
         {desktop ? (

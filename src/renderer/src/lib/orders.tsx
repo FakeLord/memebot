@@ -4,6 +4,7 @@ import { canTrade, useAuth } from './auth'
 import { usePipeline } from './pipeline'
 import { useKillSwitch } from './killswitch'
 import { errText, useEngine } from './engine'
+import { isDemo } from './demo'
 
 // Emir niyeti: arayüz sadece "ne alınacak / ne satılacak" yazar. Limitler, ücretler, TP/SL ve GMGN'e
 // gönderim motorda (src/engine/orders.ts). Buradaki kontroller sadece hızlı geri bildirim içindir.
@@ -52,6 +53,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const buy = useCallback<OrdersCtx['buy']>(
     async ({ mint, amountSol, candidateId, symbol }) => {
+      if (isDemo()) return 'Demo modunda işlem yapılmaz'
       if (!profile) return 'Oturum yok'
       if (!canTrade(profile.role)) return 'Bu rol işlem yapamaz'
       if (killSwitch) return 'İşlemler founder tarafından durduruldu'
@@ -82,6 +84,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const sell = useCallback<OrdersCtx['sell']>(
     async (position, percent) => {
+      if (isDemo()) return 'Demo modunda işlem yapılmaz'
       if (!profile) return 'Oturum yok'
       if (!canTrade(profile.role)) return 'Bu rol işlem yapamaz'
       if (!online) return 'Motor çalışmıyor — işlem yapılamaz'
@@ -110,6 +113,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   )
 
   const sellAll = useCallback(async () => {
+    if (isDemo()) return ['Demo modunda işlem yapılmaz']
     if (!online) return ['Motor çalışmıyor — işlem yapılamaz']
     try {
       const r = await run('positions.sell_all', {}, 60_000)

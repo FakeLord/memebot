@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { useAuth } from './auth'
 import { useEngine } from './engine'
+import { useDemoData } from './demo'
 import { usePipeline } from './pipeline'
 import type { DCaller, DCandidate, DOrder, DPosition, DSignal, DSource, Mode } from '../../../shared/dashboard'
 import { startOfDay } from '../../../shared/dashboard'
@@ -48,7 +49,32 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
   return out
 }
 
+/** Demo modu açıksa örnek veri, değilse gerçek veri. */
 export function useDashboardData(): DashData {
+  const real = useRealDashboardData()
+  const demo = useDemoData()
+  return useMemo<DashData>(
+    () =>
+      demo
+        ? {
+            positions: demo.positions,
+            orders: demo.orders,
+            signals: demo.signals,
+            callers: demo.callers,
+            candidates: demo.candidates,
+            sources: demo.sources,
+            pending: demo.pending,
+            recentSignals: demo.recentSignals,
+            loaded: true,
+            error: null,
+            reload: () => undefined
+          }
+        : real,
+    [demo, real]
+  )
+}
+
+function useRealDashboardData(): DashData {
   const { profile } = useAuth()
   const [state, setState] = useState<Omit<DashData, 'reload'>>({
     positions: [], orders: [], signals: [], callers: [], candidates: [], sources: [], pending: [], recentSignals: [], loaded: false, error: null
@@ -151,7 +177,9 @@ export function useDashMode(): [Mode, (m: Mode) => void] {
 /** Motorun topladığı GMGN verisi (yoksa null; at=0 ise henüz veri gelmemiştir); anahtar yoksa eski veri gösterilmez. */
 export function useGmgnDash(): { dash: DashGmgn | null; configured: boolean } {
   const { me } = useEngine()
+  const demo = useDemoData()
   const configured = me?.gmgn.configured === true
   const dash = useMemo(() => (configured && me?.gmgn.dash ? (me.gmgn.dash as DashGmgn) : null), [configured, me?.gmgn.dash])
+  if (demo) return { dash: demo.dash, configured: true }
   return { dash, configured }
 }

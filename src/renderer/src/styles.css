@@ -790,3 +790,5 @@ button.gm-cell { cursor: default; }
 .feed-source { max-width: 150px; }
 .feed.wide { max-width: none !important; }
 @media (min-width: 1240px) { .feed-layout.wide-center { grid-template-columns: minmax(250px, 1fr) minmax(0, 900px) minmax(250px, 1fr); } }
+
+.demo-banner { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); border-color: var(--accent); }

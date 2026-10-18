@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { canTrade, useAuth } from '../lib/auth'
 import { useOrders, type PositionRow } from '../lib/orders'
 import { usePipeline } from '../lib/pipeline'
+import { useDemoData } from '../lib/demo'
 import { useShareCard } from '../components/ShareCard'
 import { Share2 } from 'lucide-react'
 
@@ -55,8 +56,16 @@ export function PositionsPage() {
   const trader = canTrade(profile?.role)
   const [tab, setTab] = useState<'holding' | 'history'>('holding')
   const [share, shareModal] = useShareCard()
+  const demo = useDemoData()
 
   useEffect(() => {
+    if (demo) {
+      const rows = demo.positions as unknown as Position[]
+      setOpen(rows.filter((p) => p.status === 'open'))
+      setClosed(rows.filter((p) => p.status === 'closed').sort((a, b) => String(b.closed_at).localeCompare(String(a.closed_at))).slice(0, 50))
+      setLoaded(true)
+      return
+    }
     if (!profile) return
     const load = async () => {
       const [{ data: o }, { data: c }] = await Promise.all([
@@ -81,7 +90,7 @@ export function PositionsPage() {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [profile?.id])
+  }, [profile?.id, demo])
 
   const doSell = async (p: Position, pct: number) => {
     if (!p.is_dry_run && !confirm(`${p.symbol ?? p.mint.slice(0, 6)} pozisyonunun %${pct}'i GERÇEK olarak satılacak. Devam?`)) return

@@ -38,6 +38,7 @@ import { FeesPopover } from './FeesPopover'
 import { ConnPanel, EnginePanel, HistoryPanel, ModePanel, ThemePanel, WidgetsPanel } from './StatusPanels'
 import { MiniRules } from './MiniRules'
 import { cap, useBadges } from '../lib/badges'
+import { setDemo, useDemoMode } from '../lib/demo'
 import { DEFAULT_TICKER, fmtPrice, usePrices } from '../lib/prices'
 import { APP_VERSION, desktop, isDesktop } from '../lib/platform'
 import type { UpdateStatus } from '../../../shared/types'
@@ -59,10 +60,19 @@ export function Layout({ children }: { children: ReactNode }) {
   const killSwitch = useKillSwitch()
   const { online } = useEngine()
   const head = HEAD[page]
+  const demo = useDemoMode()
 
   return (
     <div className="app">
       <TopBar />
+      {demo && (
+        <div className="banner demo-banner">
+          DEMO MODU: ekrandaki veriler örnektir; gerçek verileriniz değişmedi ve alım-satım kapalıdır.
+          <button className="link" onClick={() => setDemo(false)}>
+            Demo modundan çık
+          </button>
+        </div>
+      )}
       {!online && (
         <div className="banner">
           Motor çalışmıyor: sinyaller işlenmiyor, alım-satım yapılamaz.

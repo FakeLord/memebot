@@ -12,6 +12,7 @@ import { FeedCard, type CardActions } from '../components/FeedCard'
 import { SignalLine, SignalsPanel, signalMatches, useSignalData } from './Signals'
 import { LeftRail, RightRail, useRailData, useRails } from '../components/DashRails'
 import { activeFilterCount, useFeedFilters } from '../lib/feedFilters'
+import { useDemoData } from '../lib/demo'
 import { useSources } from './Sources'
 import { keywordRegex, type FeedItem, type KeywordRule } from '../../../shared/feed'
 import type { TelegramStatus } from '../../../shared/types'
@@ -90,6 +91,7 @@ function FeedList({
   const [f, setF, resetF] = useFeedFilters()
   const { query, platform, withMint, showHidden, keywordOnly, pinnedOnly, source } = f
   const signalData = useSignalData(f.showSignals)
+  const demo = useDemoData()
   const [now, setNow] = useState(Date.now())
   const { sources: tgSources } = useSources('telegram')
   const { sources: xSources } = useSources('x')
@@ -111,6 +113,11 @@ function FeedList({
   }, [profile?.id, limit, showHidden])
 
   useEffect(() => {
+    if (demo) {
+      setItems(demo.feed)
+      setLoaded(true)
+      return
+    }
     if (!profile) return
     load()
     // Yeni kart en üste eklenir; öneri/görsel güncellemesi yerinde
@@ -129,7 +136,7 @@ function FeedList({
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [profile?.id, load])
+  }, [profile?.id, load, demo])
 
   const amount = rule.limits.buyPresetsSol[0] ?? 0.1
   const live = rule.limits.liveTrading

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { usePipeline } from '../lib/pipeline'
+import { useDemoData } from '../lib/demo'
 import { extractMints } from '../../../shared/extract'
 import { evaluateSafety, VERDICT_LABEL, type Verdict } from '../../../shared/safety'
 
@@ -51,8 +52,16 @@ export function useSignalData(enabled = true) {
   const [hits, setHits] = useState<Hits>({})
   const [loaded, setLoaded] = useState(false)
   const [raws, setRaws] = useState<Record<string, Raw>>({})
+  const demo = useDemoData()
 
   useEffect(() => {
+    if (demo) {
+      setRows(demo.signalRows as SignalRow[])
+      setHits({})
+      setRaws({})
+      setLoaded(true)
+      return
+    }
     if (!profile || !enabled) return
     const load = async () => {
       const { data } = await supabase
@@ -89,7 +98,7 @@ export function useSignalData(enabled = true) {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [profile?.id, enabled])
+  }, [profile?.id, enabled, demo])
 
   const verdictOf = (mint: string): Verdict | undefined =>
     raws[mint] ? evaluateSafety(raws[mint].security, raws[mint].info, rule.thresholds).result : undefined
