@@ -277,14 +277,20 @@ export function sourcePerformance(positions: DPosition[], signals: DSignal[], so
 
 
 // ---------------------------------------------------------------- çağrıcılar (Telegram grup üyeleri)
-export type CallerRule = 'normal' | 'trusted' | 'blocked'
+// normal: genel kurala uyar · manual: hep onaya düşer · trusted: otomatik al · blocked: hiç işlenmez
+export type CallerRule = 'normal' | 'manual' | 'trusted' | 'blocked'
 
 export interface DCaller {
   sender_id: string
   name: string | null
   handle: string | null
   rule: CallerRule
+  buy_sol?: number | null // kişiye özel otomatik alım tutarı (boşsa Kurallar'daki)
 }
+
+/** X hesapları çağrıcı tablosunda "x:<kullanıcı adı>" kimliğiyle durur; Telegram kimlikleri sayısaldır. */
+export const X_CALLER_PREFIX = 'x:'
+export const isXCaller = (senderId: string) => senderId.startsWith(X_CALLER_PREFIX)
 
 export type Period = 'day' | 'week' | 'month'
 export const PERIOD_DAYS: Record<Period, number> = { day: 1, week: 7, month: 30 }
@@ -324,7 +330,7 @@ function signalsByMint(signals: DSignal[]): Map<string, DSignal[]> {
 
 /**
  * Çağrıcı tablosu: dönemde (bugün / son 7 / son 30 gün) KAPANAN işlemlerin kâr/zararı, işlemi açan sinyali
- * paylaşan kişiye yazılır. Gönderenin bilinmediği işlemler (kanal, X, elle alım) tabloya girmez.
+ * paylaşan kişiye (ya da X hesabına) yazılır. Gönderenin bilinmediği işlemler (kanal, elle alım) tabloya girmez.
  * Sıralama: en çok kazandıran ilk.
  */
 export function callerLeaderboard(
@@ -386,7 +392,7 @@ export const SUGGEST_MIN_TRADES = 5
 export const SUGGEST_TRUST_WINRATE = 0.6
 export const SUGGEST_BLOCK_WINRATE = 0.3
 
-/** Son 30 günlük performansa göre "güvenilir yap" / "engelle" önerileri. Hiçbir şey kendiliğinden değişmez; kullanıcı onaylar. */
+/** Son 30 günlük performansa göre "otomatik al" / "engelle" önerileri. Hiçbir şey kendiliğinden değişmez; kullanıcı onaylar. */
 export function callerSuggestions(positions: DPosition[], signals: DSignal[], callers: DCaller[], sources: DSource[], mode: Mode, now = new Date()): CallerSuggestion[] {
   const out: CallerSuggestion[] = []
   for (const r of callerLeaderboard(positions, signals, callers, sources, mode, 'month', now)) {

@@ -4,6 +4,7 @@ import { TelegramService } from './telegram/service'
 import { pollMonitors } from './xflux/client'
 import { normalizeHandle, tweetStream, tweetToHit, type TsEnvelope, type TsRegion, type TsSocket, type TweetStreamApi } from './tweetstream/client'
 import { extractMints } from '../shared/extract'
+import { X_CALLER_PREFIX } from '../shared/dashboard'
 import type { TelegramMessage, XHit, XMonitor, XPollResult } from '../shared/types'
 
 // Sinyal kaynakları: her kullanıcının Telegram oturumu, XFlux izleyicileri ve TweetStream akışı motorda çalışır.
@@ -113,7 +114,10 @@ export class SourceHub {
 
   /** X gönderisi: sinyal + kart. */
   async onX(userId: string, sourceId: string, h: XHit, monitorUsername: string): Promise<void> {
-    await this.record(userId, sourceId, h.tweetId, h.text, new Date(h.createdAt ?? Date.now()))
+    // İzlenen hesap çağrıcıdır (kişiye özel kural/tutar): kimlik "x:<kullanıcı adı>"
+    const xHandle = (normalizeHandle(monitorUsername) ?? monitorUsername).toLowerCase()
+    const sender = { id: `${X_CALLER_PREFIX}${xHandle}`, name: h.author?.name ?? `@${xHandle}`, handle: xHandle }
+    await this.record(userId, sourceId, h.tweetId, h.text, new Date(h.createdAt ?? Date.now()), 5, sender)
     const handle = h.author?.handle ?? monitorUsername
     await this.feed.ingest(userId, sourceId, {
       platform: 'x',
@@ -194,9 +198,24 @@ export class SourceHub {
     await this.ts.get(userId)?.refreshMe(false)
   }
 
+  private knownXCallers = new Set<string>()
+
+  /** İzlenen her X hesabı Çağrıcılar'da hemen görünsün (token paylaşmadan da kural/tutar verilebilsin). */
+  async ensureXCallers(userId: string, handles: string[]): Promise<void> {
+    const fresh = [...new Set(handles.map((h) => (normalizeHandle(h) ?? h).toLowerCase()).filter(Boolean))].filter(
+      (h) => !this.knownXCallers.has(`${userId}:${h}`)
+    )
+    if (!fresh.length) return
+    const rows = fresh.map((h) => ({ user_id: userId, sender_id: `${X_CALLER_PREFIX}${h}`, name: `@${h}`, handle: h }))
+    const { error } = await this.ctx.db.from('callers').upsert(rows, { onConflict: 'user_id,sender_id', ignoreDuplicates: true })
+    if (error) this.ctx.log.warn('X çağrıcıları yazılamadı', { error: error.message })
+    else fresh.forEach((h) => this.knownXCallers.add(`${userId}:${h}`))
+  }
+
   /** TweetStream'de izlenen her hesap için kaynak satırı (Hesaplar'da görünsün, izle/sessiz ayarlansın). */
   async syncTsSources(userId: string, handles: string[]): Promise<void> {
     if (!handles.length) return
+    await this.ensureXCallers(userId, handles)
     const rows = handles.map((h) => ({ user_id: userId, type: 'x', chat_id: `ts:${h}`, title: `@${h}`, is_active: true }))
     const { error } = await this.ctx.db.from('sources').upsert(rows, { onConflict: 'user_id,type,chat_id', ignoreDuplicates: true })
     if (error) this.ctx.log.warn('TweetStream kaynakları yazılamadı', { error: error.message })
@@ -301,6 +320,7 @@ class XPoller {
         lastPollAt: Date.now(),
         monitors: r.monitors.map((m) => ({ id: m.id, username: m.username, hits: m.hits.length }))
       })
+      await this.hub.ensureXCallers(this.userId, r.monitors.map((m) => m.username))
       for (const m of r.monitors) await this.record(m)
       this.firstPoll = false
     } catch (e) {

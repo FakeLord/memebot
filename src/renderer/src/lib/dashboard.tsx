@@ -98,7 +98,7 @@ function useRealDashboardData(): DashData {
         supabase.from('sources').select('id, title, type').eq('user_id', uid),
         supabase.from('candidates').select('id, mint, verdict, summary, created_at, expires_at').eq('user_id', uid).eq('status', 'pending').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(8),
         supabase.from('signals').select('id, mint, received_at, source_id').eq('user_id', uid).gte('received_at', since30).order('received_at', { ascending: false }).limit(8),
-        supabase.from('callers').select('sender_id, name, handle, rule').eq('user_id', uid)
+        supabase.from('callers').select('sender_id, name, handle, rule, buy_sol').eq('user_id', uid)
       ])
       if (!alive.current) return
       setState({

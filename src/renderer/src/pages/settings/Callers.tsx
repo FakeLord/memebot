@@ -6,7 +6,7 @@ import { CallerManager, TopCallers } from '../../components/Callers'
 import { Card, ModeSwitch } from '../../components/DashWidgets'
 import { Section } from '../../components/ui'
 
-// Çağrıcılar: Telegram gruplarında token paylaşan kişilerin başarısı ve kuralları.
+// Çağrıcılar: Telegram gruplarında token paylaşan kişilerin ve izlenen X hesaplarının başarısı, kuralları ve alım tutarları.
 
 export function CallersSection() {
   const data = useDashboardData()
@@ -29,8 +29,8 @@ export function CallersSection() {
         title="Kişiler ve kurallar"
         note={
           rule.limits.autoOnlyTrusted
-            ? `Otomatik modda yalnızca “Güvenilir” kişilerin grup çağrıları otomatik alınır (güvenilirlerde alım tutarı ×${rule.limits.trustedBuyMult}); diğerleri onaya düşer.`
-            : 'Otomatik alımı yalnızca güvenilir kişilere sınırlamak için Kurallar → İşlem bölümündeki seçeneği açın.'
+            ? `Otomatik modda yalnızca “Otomatik al” kişilerin çağrıları otomatik alınır; diğerleri onaya düşer. Her kişiye ayrı alım tutarı verebilirsiniz.`
+            : 'Her Telegram üyesi ve X hesabı için kural (Engelli / Onaya düşsün / Otomatik al) ve kişiye özel alım tutarı seçin. Otomatik alımı yalnız seçtiğiniz kişilerle sınırlamak için Kurallar → İşlem bölümündeki seçeneği açın.'
         }
       >
         {data.loaded ? <CallerManager data={data} mode={mode} /> : <p className="faint">Yükleniyor…</p>}

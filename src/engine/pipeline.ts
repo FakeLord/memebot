@@ -4,6 +4,7 @@ import { ORDER_COLS, type OrderRow } from './orders'
 import { evaluateSafety, summarizeToken, type SafetyThresholds } from '../shared/safety'
 import type { TokenCheckResult } from '../shared/engine'
 import { startOfDay } from './time'
+import type { CallerRule } from '../shared/dashboard'
 
 // Karar motoru: yeni sinyal → GMGN güvenlik kontrolü → kullanıcının kuralına göre onay adayı.
 // Otomatik modda aday beklemeden emre dönüşür (günlük zarar sınırı aşılırsa mod Manuel'e çekilir).
@@ -91,12 +92,16 @@ export class Pipeline {
     return out
   }
 
-  /** Çağrıcının kuralı (kişi tanınmıyorsa ya da kural yoksa 'normal'). */
-  private async callerRule(userId: string, senderId: string | null | undefined): Promise<'normal' | 'trusted' | 'blocked'> {
-    if (!senderId) return 'normal'
-    const { data } = await this.ctx.db.from('callers').select('rule').eq('user_id', userId).eq('sender_id', senderId).maybeSingle()
+  /** Çağrıcının kuralı ve kişiye özel alım tutarı (kişi tanınmıyorsa ya da kural yoksa 'normal'). */
+  private async callerRule(userId: string, senderId: string | null | undefined): Promise<{ rule: CallerRule; buySol: number | null }> {
+    if (!senderId) return { rule: 'normal', buySol: null }
+    const { data } = await this.ctx.db.from('callers').select('rule, buy_sol').eq('user_id', userId).eq('sender_id', senderId).maybeSingle()
     const r = data?.rule
-    return r === 'trusted' || r === 'blocked' ? r : 'normal'
+    const buy = Number(data?.buy_sol)
+    return {
+      rule: r === 'trusted' || r === 'blocked' || r === 'manual' ? r : 'normal',
+      buySol: Number.isFinite(buy) && buy > 0 ? buy : null
+    }
   }
 
   async processMint(userId: string, mint: string, signalId?: string, senderId?: string | null): Promise<void> {
@@ -104,8 +109,8 @@ export class Pipeline {
     const key = `${userId}:${mint}`
     if (this.inFlight.has(key) || !ctx.users.active(userId)) return
     // Engelli kişinin çağrısı hiç işlenmez (güvenlik kontrolü için GMGN çağrısı bile yapılmaz)
-    const callerRule = await this.callerRule(userId, senderId)
-    if (callerRule === 'blocked') return
+    const caller = await this.callerRule(userId, senderId)
+    if (caller.rule === 'blocked') return
     this.inFlight.add(key)
     ctx.state.patch(userId, { pipeline: { state: 'working' } })
     try {
@@ -141,16 +146,17 @@ export class Pipeline {
         if (error.code !== '23505') ctx.state.patch(userId, { pipeline: { lastError: error.message } })
         return
       }
-      // Otomatik alım: "yalnız güvenilir" açıksa, kişisi bilinen (grup) çağrılarda sadece güvenilirler otomatik alınır; diğerleri onay bekler
-      const gated = rule.limits.autoOnlyTrusted && !!senderId && callerRule !== 'trusted'
-      if (rule.mode === 'auto' && !gated) await this.autoBuy(userId, cand.id, mint, summary.symbol, callerRule === 'trusted')
+      // Otomatik alım (yalnız otomatik modda): "Onaya düşsün" kişiler hiç otomatik alınmaz; "yalnız güvenilir" açıksa
+      // kişisi bilinen çağrılarda sadece "Otomatik al" kişiler alınır; diğerleri onay bekler
+      const gated = caller.rule === 'manual' || (rule.limits.autoOnlyTrusted && !!senderId && caller.rule !== 'trusted')
+      if (rule.mode === 'auto' && !gated) await this.autoBuy(userId, cand.id, mint, summary.symbol, caller.rule === 'trusted', caller.buySol)
     } finally {
       this.inFlight.delete(key)
     }
   }
 
   // Otomatik mod: aday "bekliyor → onaylandı" geçişini kazanan motor alır
-  private async autoBuy(userId: string, candidateId: string, mint: string, symbol?: string, trusted = false): Promise<void> {
+  private async autoBuy(userId: string, candidateId: string, mint: string, symbol?: string, trusted = false, callerBuySol: number | null = null): Promise<void> {
     const ctx = this.ctx
     const { rule, canTrade } = await ctx.users.fresh(userId)
     if (rule.mode !== 'auto' || !canTrade) return
@@ -176,8 +182,9 @@ export class Pipeline {
       return
     }
 
+    // Kişiye özel tutar varsa o; yoksa Kurallar'daki tutar (güvenilirde çarpanla). Her durumda işlem başı maks. tutar sınırı
     const mult = trusted ? Math.max(1, Math.min(rule.limits.trustedBuyMult || 1, 5)) : 1
-    const amount = Math.min(rule.limits.autoBuySol * mult, rule.limits.maxBuySol)
+    const amount = Math.min(callerBuySol ?? rule.limits.autoBuySol * mult, rule.limits.maxBuySol)
     const { data: won } = await ctx.db
       .from('candidates')
       .update({ status: 'approved', amount_sol: amount, auto: true, decided_at: new Date().toISOString() })

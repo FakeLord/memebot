@@ -391,6 +391,37 @@ d('MemeBot Engine (yerel Supabase)', () => {
     })
     expect(o4.amount_in).toBe('100000000') // 0.05 × 2
 
+    // 4) kişiye özel tutar: çarpanın yerine geçer (işlem başı maks. tutarla sınırlı)
+    await dev.client.from('callers').update({ buy_sol: 0.3 }).eq('sender_id', sender)
+    const m5 = mint()
+    await call(m5, sender, 'Alo')
+    const o5 = await waitFor(async () => {
+      const { data } = await dev.client.from('orders').select('*').eq('mint', m5).maybeSingle()
+      return data?.status === 'confirmed' ? data : null
+    })
+    expect(o5.amount_in).toBe('300000000')
+    await dev.client.from('callers').update({ buy_sol: 3 }).eq('sender_id', sender)
+    const m6 = mint()
+    await call(m6, sender, 'Alo')
+    const o6 = await waitFor(async () => {
+      const { data } = await dev.client.from('orders').select('*').eq('mint', m6).maybeSingle()
+      return data?.status === 'confirmed' ? data : null
+    })
+    expect(o6.amount_in).toBe('1000000000') // maxBuySol = 1
+    // 5 SOL üstü veritabanında reddedilir
+    expect((await dev.client.from('callers').update({ buy_sol: 6 }).eq('sender_id', sender)).error).toBeTruthy()
+
+    // 5) "Onaya düşsün": "yalnız güvenilir" kapalı ve otomatik modda bile onaya düşer
+    await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, autoBuySol: 0.05, maxOpenPositions: 50 }, 'auto')
+    await engine.ctx.users.load()
+    await dev.client.from('callers').update({ rule: 'manual', buy_sol: null }).eq('sender_id', sender)
+    const m7 = mint()
+    await call(m7, sender, 'Alo')
+    const c7 = await waitFor(async () => (await dev.client.from('candidates').select('status').eq('mint', m7).maybeSingle()).data)
+    expect(c7.status).toBe('pending')
+    await new Promise((r) => setTimeout(r, 400))
+    expect((await admin.from('orders').select('id').eq('mint', m7)).data).toEqual([])
+
     await setRule(dev.id, { maxBuySol: 1, dailyMaxSol: 100, liveTrading: false, maxOpenPositions: 50 }, 'manual')
     await engine.ctx.users.load()
   })
@@ -615,6 +646,13 @@ d('MemeBot Engine (yerel Supabase)', () => {
     const card = await waitFor(async () => (await dev.client.from('feed_items').select('*').eq('external_id', id).maybeSingle()).data)
     expect(card).toMatchObject({ platform: 'x', mints: [m], url: `https://x.com/tshesap/status/${id}` })
     expect(card.author).toMatchObject({ handle: 'tshesap', verified: true, followers: 1234 })
+    // X hesabı çağrıcıdır: sinyalde gönderen "x:<ad>", eklenen hesaplar Çağrıcılar'da hemen görünür
+    expect((await admin.from('signals').select('sender_id').eq('mint', m).single()).data).toEqual({ sender_id: 'x:tshesap' })
+    const { data: xc } = await dev.client.from('callers').select('sender_id, handle, rule').in('sender_id', ['x:ikinci', 'x:tshesap']).order('sender_id')
+    expect(xc).toEqual([
+      { sender_id: 'x:ikinci', handle: 'ikinci', rule: 'normal' },
+      { sender_id: 'x:tshesap', handle: 'tshesap', rule: 'normal' }
+    ])
     const st = await waitFor(async () => ((await tsState())?.events ? tsState() : null))
     expect(st.lastLatencyMs).toBeGreaterThanOrEqual(0)
 
