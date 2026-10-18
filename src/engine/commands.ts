@@ -5,7 +5,7 @@ import type { SourceHub } from './sources'
 import type { DeployEngine } from './deploy'
 import type { DashboardFeed } from './dashboard'
 import type { DeployForm } from '../shared/deploy'
-import { assertSigningKey } from './gmgn/signer'
+import { normalizeSigningKey } from './gmgn/signer'
 import { extractWallets } from './gmgn/trade'
 import { pollMonitors } from './xflux/client'
 import { normalizeHandle } from './tweetstream/client'
@@ -65,9 +65,9 @@ export class Commands {
         const s = await this.open<{ apiKey?: string; privateKeyPem?: string }>(userId, 'gmgn.save', p)
         const apiKey = String(s.apiKey ?? '').trim()
         if (!apiKey) throw new CommandError('API anahtarı boş')
-        const pem = String(s.privateKeyPem ?? '').replace(/\\n/g, '\n').trim() + '\n'
+        let pem: string
         try {
-          assertSigningKey(pem)
+          pem = normalizeSigningKey(String(s.privateKeyPem ?? ''))
         } catch (e) {
           throw new CommandError(`İmza anahtarı geçersiz: ${(e as Error).message}`)
         }

@@ -147,7 +147,7 @@ function GmgnSection() {
               spellCheck={false}
             />
           </SettingRow>
-          <SettingRow title="İmza anahtarı" desc="Ed25519 PEM — cüzdan anahtarı DEĞİL" stacked>
+          <SettingRow title="İmza anahtarı" desc="GMGN API imza anahtarı (Ed25519) — &quot;-----BEGIN PRIVATE KEY-----&quot; satırı dahil tamamını yapıştırın. Cüzdan anahtarı DEĞİL." stacked>
             <textarea
               rows={4}
               value={pem}
