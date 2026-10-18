@@ -5,7 +5,7 @@ import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto'
 import { afterAll, describe, expect, it } from 'vitest'
 import { signatureMessage, signMessage, sortedQueryString } from '../../src/engine/gmgn/signer'
 import { RateLimiter, Priority } from '../../src/engine/gmgn/limiter'
-import { extractWallets, lamports, toRaw, sell, buy, HARD_MAX_BUY_SOL } from '../../src/engine/gmgn/trade'
+import { describeShape, extractWallets, lamports, toRaw, sell, buy, HARD_MAX_BUY_SOL } from '../../src/engine/gmgn/trade'
 import { parseHit, parseMonitors } from '../../src/engine/xflux/client'
 import { Vault } from '../../src/engine/vault'
 import { startOfDay } from '../../src/engine/time'
@@ -71,6 +71,26 @@ describe('alım-satım yardımcıları', () => {
   it('extractWallets iç içe yanıttaki SOL cüzdanlarını bulur, EVM zincirini atar', () => {
     const data = { wallets: [{ chain: 'sol', address: WALLET, balance: '1.5' }, { chain: 'eth', address: MINT }] }
     expect(extractWallets(data)).toEqual([{ address: WALLET, balance: 1.5 }])
+  })
+
+  it('extractWallets farklı bakiye biçimlerini tanır', () => {
+    const one = (w: Record<string, unknown>) => extractWallets({ data: { wallets: [{ chain: 'sol', address: WALLET, ...w }] } })[0].balance
+    expect(one({ sol_balance: 2 })).toBe(2)
+    expect(one({ main_currency_balance: '0.25' })).toBe(0.25)
+    expect(one({ usd_balance: 99, native_token_balance: '3' })).toBe(3)
+    expect(one({ balances: [{ symbol: 'USDC', amount: 5 }, { symbol: 'SOL', amount: '1.75' }] })).toBe(1.75)
+    expect(one({ main_currency: { symbol: 'SOL', balance: '0.4' } })).toBe(0.4)
+    expect(one({ balance: { SOL: '0.9' } })).toBe(0.9)
+    expect(one({})).toBeUndefined()
+    // Aynı adres bakiyesiz tekrar geçince bulunan bakiye korunur
+    expect(extractWallets({ wallets: [{ address: WALLET, balance: 1 }], selected: { address: WALLET } })).toEqual([{ address: WALLET, balance: 1 }])
+  })
+
+  it('describeShape değerleri gizler, alan adlarını korur', () => {
+    const s = JSON.stringify(describeShape({ data: { wallets: [{ address: WALLET, balance: '1.5', name: 'ana' }] } }))
+    expect(s).not.toContain(WALLET)
+    expect(s).not.toContain('1.5')
+    expect(s).toContain('balance')
   })
 
   it('mutlak üst sınır ve deneme satışı miktarı', async () => {

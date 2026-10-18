@@ -130,13 +130,65 @@ export function extractWallets(data: unknown): WalletInfo[] {
       | undefined
     const chain = typeof o.chain === 'string' ? o.chain : undefined
     if (addr && (!chain || chain === 'sol')) {
-      const bal = Number(o.balance ?? o.sol_balance ?? o.native_balance ?? o.amount)
-      out.set(addr, { address: addr, balance: Number.isFinite(bal) ? bal : undefined })
+      // Aynı adres yanıtta birden çok kez geçebilir: bulunan bakiye, bakiyesiz bir tekrarla silinmesin
+      const balance = solBalance(o) ?? out.get(addr)?.balance
+      out.set(addr, { address: addr, balance })
     }
     Object.values(o).forEach((x) => walk(x, depth + 1))
   }
   walk(data, 0)
   return [...out.values()]
+}
+
+const num = (v: unknown): number | undefined => {
+  if (typeof v !== 'number' && typeof v !== 'string') return undefined
+  if (typeof v === 'string' && !/^\s*-?\d+(\.\d+)?([eE][-+]?\d+)?\s*$/.test(v)) return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+const BALANCE_KEYS = ['sol_balance', 'native_balance', 'main_balance', 'main_currency_balance', 'balance', 'amount']
+const SOL_SYMBOLS = new Set(['SOL', 'WSOL'])
+
+/** Cüzdan nesnesindeki SOL bakiyesi. Alan adı belgelenmediği için bilinen adlar, "...balance" ile biten alanlar ve
+ *  { symbol: 'SOL', balance/amount } biçimli iç içe kayıtlar sırayla denenir. */
+function solBalance(o: Record<string, unknown>, depth = 0): number | undefined {
+  for (const k of BALANCE_KEYS) {
+    const n = num(o[k])
+    if (n !== undefined) return n
+  }
+  for (const [k, v] of Object.entries(o)) {
+    if (/balance$/i.test(k) && !/usd/i.test(k)) {
+      const n = num(v)
+      if (n !== undefined) return n
+    }
+  }
+  if (depth >= 3) return undefined
+  for (const v of Object.values(o)) {
+    const items = Array.isArray(v) ? v : v && typeof v === 'object' ? [v] : []
+    for (const it of items) {
+      if (!it || typeof it !== 'object') continue
+      const r = it as Record<string, unknown>
+      const sym = [r.symbol, r.currency, r.token_symbol, (r.token as Record<string, unknown> | undefined)?.symbol].find((x) => typeof x === 'string')
+      if (typeof sym === 'string' && SOL_SYMBOLS.has(sym.toUpperCase())) {
+        const n = solBalance(r, depth + 1)
+        if (n !== undefined) return n
+      }
+      // "balance": { "sol": 1.2 } ya da "balances": { "SOL": "1.2" } gibi
+      for (const [k, x] of Object.entries(r)) if (SOL_SYMBOLS.has(k.toUpperCase()) && num(x) !== undefined) return num(x)
+    }
+  }
+  return undefined
+}
+
+/** Tanı için yanıtın iskeleti: alan adları kalır, değerler türüyle değiştirilir (adres/bakiye/kimlik loglanmaz). */
+export function describeShape(v: unknown, depth = 0): unknown {
+  if (depth > 5) return '…'
+  if (Array.isArray(v)) return v.length ? [describeShape(v[0], depth + 1), `(${v.length} öğe)`] : []
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).slice(0, 40).map(([k, x]) => [k, describeShape(x, depth + 1)]))
+  }
+  if (typeof v === 'string') return num(v) !== undefined ? 'sayı-metin' : isLikelyMint(v) ? 'adres' : `metin(${v.length})`
+  return v === null ? null : typeof v
 }
 
 // Okunabilir bakiye → en küçük birim. Üstel gösterim olmadan yazdırıp fazla basamağı KESER (yukarı yuvarlamaz)

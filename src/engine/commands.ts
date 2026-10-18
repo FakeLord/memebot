@@ -7,7 +7,7 @@ import type { DashboardFeed } from './dashboard'
 import type { DeployForm } from '../shared/deploy'
 import { generateSigningKeyPair, normalizeSigningKey } from './gmgn/signer'
 import { gmgnPublicState } from './vault'
-import { extractWallets } from './gmgn/trade'
+import { describeShape, extractWallets } from './gmgn/trade'
 import { pollMonitors } from './xflux/client'
 import { normalizeHandle } from './tweetstream/client'
 import { isLikelyMint } from '../shared/extract'
@@ -122,7 +122,12 @@ export class Commands {
         const g = needGmgn(userId)
         const r = await g.client.userInfo()
         if (!r.ok) throw new CommandError(`GMGN: ${r.error}`)
-        return { wallets: extractWallets(r.data), selected: g.secret.wallet }
+        const wallets = extractWallets(r.data)
+        // Bakiye alanı tanınmadıysa yanıtın iskeletini (değersiz) günlüğe yaz: alan adını oradan bulup ekleriz
+        if (wallets.length && wallets.every((w) => w.balance === undefined)) {
+          ctx.log.warn('GMGN user/info: bakiye alanı tanınmadı', { shape: JSON.stringify(describeShape(r.data)) })
+        }
+        return { wallets, selected: g.secret.wallet }
       },
       'gmgn.wallet': async (userId, p) => {
         const address = String(p.address ?? '')
