@@ -21,7 +21,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
   const [status, setStatus] = useState<EngineStatusRow | null>(null)
   const [me, setMe] = useState<EngineUserState | null>(null)
-  const [now, setNow] = useState(Date.now())
+  // "Çevrimiçi" kararı, durumu SON GÖRDÜĞÜMÜZ ana göre verilir (şimdiki saate göre değil): sekme arka plandayken
+  // tarayıcı zamanlayıcıları ve gerçek zamanlı kanalı yavaşlatır; saat ilerleyip durum yenilenmezse motor yanlışlıkla
+  // "çalışmıyor" görünürdü. Sekmeye dönünce durum hemen yeniden okunur.
+  const [checkedAt, setCheckedAt] = useState(Date.now())
 
   useEffect(() => {
     if (!profile) return
@@ -31,7 +34,11 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         .select('id, instance_id, version, host, started_at, heartbeat_at, public_key, gmgn_latency_ms')
         .eq('id', 'main')
         .maybeSingle()
-        .then(({ data }) => setStatus((data as EngineStatusRow) ?? null))
+        .then(({ data, error }) => {
+          if (error) return // ağ hatası: son bilinen durum korunur
+          setStatus((data as EngineStatusRow) ?? null)
+          setCheckedAt(Date.now())
+        })
     const loadMe = () =>
       supabase
         .from('engine_user_state')
@@ -44,20 +51,32 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     const ch = supabase
       .channel('engine-state')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'engine_status' }, (p) => {
-        if (p.new && (p.new as EngineStatusRow).id) setStatus(p.new as EngineStatusRow)
+        if (p.new && (p.new as EngineStatusRow).id) {
+          setStatus(p.new as EngineStatusRow)
+          setCheckedAt(Date.now())
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'engine_user_state', filter: `user_id=eq.${profile.id}` }, (p) => {
         if (p.new && (p.new as EngineUserState).user_id) setMe(p.new as EngineUserState)
       })
       .subscribe()
-    // Gerçek zamanlı kanal kopsa bile durum 15 sn'de bir tazelenir; "çevrimiçi" hesabı için saat
+    // Gerçek zamanlı kanal kopsa bile durum 15 sn'de bir tazelenir
     const t = setInterval(() => {
-      setNow(Date.now())
-      loadStatus()
+      if (!document.hidden) loadStatus()
     }, 15_000)
+    // Başka sekmeden / uygulamadan dönünce hemen tazele (arka planda yavaşlayan zamanlayıcıyı bekleme)
+    const onVisible = () => {
+      if (document.hidden) return
+      loadStatus()
+      loadMe()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
     return () => {
       supabase.removeChannel(ch)
       clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
     }
   }, [profile?.id])
 
@@ -71,7 +90,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <Ctx.Provider value={{ status, online: engineOnline(status, now), me, run, runSealed: sealed }}>{children}</Ctx.Provider>
+    <Ctx.Provider value={{ status, online: engineOnline(status, checkedAt), me, run, runSealed: sealed }}>{children}</Ctx.Provider>
   )
 }
 
